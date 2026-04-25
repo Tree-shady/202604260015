@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>标签：{{ tag }}</h2>
+    
+    {% if entries %}
+        <ul class="list-group">
+            {% for entry in entries %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('view_entry', date_str=entry.stem) }}">{{ entry.stem }}</a>
+                    <span class="text-muted">{{ entry.stat().st_size }} 字节</span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="alert alert-info">该标签下暂无日记</div>
+    {% endif %}
+    
+    <a href="{{ url_for('index') }}" class="btn btn-secondary mt-3">返回首页</a>
+{% endblock %}

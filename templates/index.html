@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-md-8">
+            <h2>日记列表</h2>
+            {% if entries %}
+                <ul class="list-group">
+                    {% for entry in entries %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('view_entry', date_str=entry.stem) }}">{{ entry.stem }}</a>
+                            <span class="text-muted">{{ entry.stat().st_size }} 字节</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="alert alert-info">暂无日记</div>
+            {% endif %}
+        </div>
+        <div class="col-md-4">
+            <h2>标签</h2>
+            {% if tags %}
+                <div class="d-flex flex-wrap gap-2">
+                    {% for tag, dates in tags.items() %}
+                        <a href="{{ url_for('view_tag', tag=tag) }}" class="btn btn-outline-primary">
+                            {{ tag }} ({{ dates|length }})
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">暂无标签</div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

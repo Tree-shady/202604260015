@@ -88,7 +88,7 @@ def list_entries():
     for idx, entry in enumerate(entries, 1):
         date_str = entry.stem
         size = entry.stat().st_size
-        print(f"  {Fore.CYAN}{idx}.{Fore.WHITE} {date_str} {Fore.DIM}({size} 字节)")
+        print(f"  {Fore.CYAN}{idx}.{Fore.WHITE} {date_str} {Style.DIM}({size} 字节){Style.RESET_ALL}")
 
 def search_entries(keyword):
     """在日记内容中搜索关键词"""
