@@ -432,6 +432,17 @@ def new_entry():
         except Exception as e:
             logger.error(f"保存心情数据失败: {e}")
 
+        # 添加通知
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'新日记已保存：{date_str}',
+                level='success',
+                title='日记保存成功'
+            )
+        except Exception as e:
+            logger.error(f"添加通知失败: {e}")
+
         flash('日记已保存', 'success')
         return redirect(url_for('index'))
 
@@ -564,6 +575,17 @@ def edit_entry(date_str):
             mood_module.save_mood(new_date, mood_type, new_mood_note)
         except Exception as e:
             logger.error(f"保存心情数据失败: {e}")
+
+        # 添加通知
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'日记已更新：{new_date}',
+                level='success',
+                title='日记更新成功'
+            )
+        except Exception as e:
+            logger.error(f"添加通知失败: {e}")
 
         flash('日记已更新', 'success')
         return redirect(url_for('view_entry', date_str=new_date))
@@ -775,9 +797,31 @@ def export_data():
             return redirect(url_for('import_export'))
         
         flash(f'导出成功，文件保存至: {file_path}', 'success')
+
+        # 添加通知
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'数据已成功导出为 {export_format.upper()} 格式',
+                level='success',
+                title='导出成功'
+            )
+        except Exception as e:
+            logger.error(f"添加通知失败: {e}")
     except Exception as e:
         logger.error(f"导出失败: {e}")
         flash('导出失败', 'danger')
+
+        # 添加错误通知
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'导出失败：{str(e)}',
+                level='error',
+                title='导出失败'
+            )
+        except Exception:
+            pass
     
     return redirect(url_for('import_export'))
 
@@ -822,6 +866,55 @@ def import_data():
         flash('导入失败', 'danger')
     
     return redirect(url_for('import_export'))
+
+# 通知相关API路由
+@app.route('/api/notifications')
+def get_notifications_api():
+    """获取通知列表API"""
+    from utils.notification import get_notifications, get_unread_count
+
+    limit = request.args.get('limit', 50, type=int)
+    unread_only = request.args.get('unread_only', 'false').lower() == 'true'
+
+    notifications = get_notifications(limit=limit, unread_only=unread_only)
+    unread_count = get_unread_count()
+
+    return {
+        'notifications': notifications,
+        'unread_count': unread_count
+    }
+
+@app.route('/api/notifications/mark-read/<notification_id>', methods=['POST'])
+def mark_notification_read(notification_id):
+    """标记单个通知为已读"""
+    from utils.notification import mark_as_read
+
+    success = mark_as_read(notification_id)
+    return {'success': success}
+
+@app.route('/api/notifications/mark-all-read', methods=['POST'])
+def mark_all_notifications_read():
+    """标记所有通知为已读"""
+    from utils.notification import mark_all_as_read
+
+    mark_all_as_read()
+    return {'success': True}
+
+@app.route('/api/notifications/<notification_id>', methods=['DELETE'])
+def delete_notification_api(notification_id):
+    """删除单个通知"""
+    from utils.notification import delete_notification
+
+    success = delete_notification(notification_id)
+    return {'success': success}
+
+@app.route('/api/notifications/clear', methods=['POST'])
+def clear_notifications_api():
+    """清空所有通知"""
+    from utils.notification import clear_all_notifications
+
+    clear_all_notifications()
+    return {'success': True}
 
 def run_production_server():
     """运行生产服务器"""

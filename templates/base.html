@@ -164,10 +164,15 @@
             position: relative;
         }
 
+        .notification-link {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+        }
+
         .notification i {
             font-size: 1.25rem;
             color: var(--text-secondary);
-            cursor: pointer;
         }
 
         .notification-badge {
@@ -178,7 +183,7 @@
             color: white;
             font-size: 0.75rem;
             font-weight: 600;
-            width: 18px;
+            min-width: 18px;
             height: 18px;
             border-radius: 50%;
             display: flex;
@@ -186,11 +191,94 @@
             justify-content: center;
         }
 
+        .notification-badge:empty,
+        .notification-badge[data-count="0"] {
+            display: none;
+        }
+
+        .notification-dropdown {
+            width: 320px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .notification-dropdown .dropdown-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+        }
+
+        .notification-dropdown .notification-list {
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .notification-item:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .notification-item.unread {
+            background-color: rgba(var(--primary-rgb), 0.05);
+        }
+
+        .notification-item-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .notification-item-message {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .notification-item-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .notification-item-delete {
+            color: var(--text-muted);
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .notification-item:hover .notification-item-delete {
+            opacity: 1;
+        }
+
+        .notification-empty {
+            padding: 2rem 1rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
         .user-info {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            cursor: pointer;
+        }
+
+        .user-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: inherit;
         }
 
         .user-avatar {
@@ -516,14 +604,37 @@
                     <button type="submit" style="display: none;"></button>
                 </form>
                 <div class="user-menu">
-                    <div class="notification">
-                        <i class="bi bi-bell"></i>
-                        <span class="notification-badge">3</span>
+                    <div class="notification dropdown">
+                        <a href="#" class="notification-link" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-bell"></i>
+                            <span class="notification-badge" id="notificationBadge">0</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationDropdown">
+                            <li class="dropdown-header">
+                                <span>通知</span>
+                                <a href="#" id="markAllRead" class="small text-muted">全部标为已读</a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li class="notification-list" id="notificationList">
+                                <div class="notification-empty">暂无通知</div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li class="dropdown-footer">
+                                <a href="#" id="clearAllNotifications" class="small text-muted">清空通知</a>
+                            </li>
+                        </ul>
                     </div>
-                    <div class="user-info">
-                        <div class="user-avatar">我</div>
-                        <span class="user-name">用户</span>
-                        <i class="bi bi-chevron-down"></i>
+                    <div class="user-info dropdown">
+                        <a href="#" class="user-link" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="user-avatar">我</div>
+                            <span class="user-name">用户</span>
+                            <i class="bi bi-chevron-down"></i>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end user-dropdown" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('settings') }}"><i class="bi bi-gear me-2"></i>设置</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-question-circle me-2"></i>帮助</a></li>
+                        </ul>
                     </div>
                 </div>
             </header>
@@ -557,7 +668,137 @@
                     link.classList.add('active');
                 }
             });
+
+            // 加载通知
+            loadNotifications();
+
+            // 标记全部已读
+            document.getElementById('markAllRead')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                markAllNotificationsRead();
+            });
+
+            // 清空所有通知
+            document.getElementById('clearAllNotifications')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                clearAllNotifications();
+            });
         });
+
+        // 加载通知列表
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/api/notifications?limit=50');
+                const data = await response.json();
+
+                const badge = document.getElementById('notificationBadge');
+                const list = document.getElementById('notificationList');
+
+                if (badge) {
+                    badge.textContent = data.unread_count;
+                    if (data.unread_count > 0) {
+                        badge.style.display = 'flex';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+
+                if (list) {
+                    if (data.notifications.length === 0) {
+                        list.innerHTML = '<div class="notification-empty">暂无通知</div>';
+                    } else {
+                        list.innerHTML = data.notifications.map(n => `
+                            <div class="notification-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        ${n.title ? `<div class="notification-item-title">${escapeHtml(n.title)}</div>` : ''}
+                                        <div class="notification-item-message">${escapeHtml(n.message)}</div>
+                                        <div class="notification-item-time">${formatTime(n.created_at)}</div>
+                                    </div>
+                                    <a href="#" class="notification-item-delete" data-id="${n.id}" onclick="event.stopPropagation(); deleteNotification('${n.id}')">
+                                        <i class="bi bi-x"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        `).join('');
+
+                        // 点击通知标记为已读
+                        list.querySelectorAll('.notification-item').forEach(item => {
+                            item.addEventListener('click', function() {
+                                const id = this.dataset.id;
+                                markNotificationRead(id);
+                            });
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('加载通知失败:', error);
+            }
+        }
+
+        // 标记单个通知为已读
+        async function markNotificationRead(id) {
+            try {
+                await fetch(`/api/notifications/mark-read/${id}`, { method: 'POST' });
+                loadNotifications();
+            } catch (error) {
+                console.error('标记已读失败:', error);
+            }
+        }
+
+        // 标记所有通知为已读
+        async function markAllNotificationsRead() {
+            try {
+                await fetch('/api/notifications/mark-all-read', { method: 'POST' });
+                loadNotifications();
+            } catch (error) {
+                console.error('标记全部已读失败:', error);
+            }
+        }
+
+        // 删除单个通知
+        async function deleteNotification(id) {
+            try {
+                await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
+                loadNotifications();
+            } catch (error) {
+                console.error('删除通知失败:', error);
+            }
+        }
+
+        // 清空所有通知
+        async function clearAllNotifications() {
+            if (!confirm('确定要清空所有通知吗？')) return;
+            try {
+                await fetch('/api/notifications/clear', { method: 'POST' });
+                loadNotifications();
+            } catch (error) {
+                console.error('清空通知失败:', error);
+            }
+        }
+
+        // HTML转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 格式化时间
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+
+            if (minutes < 1) return '刚刚';
+            if (minutes < 60) return `${minutes}分钟前`;
+            if (hours < 24) return `${hours}小时前`;
+            if (days < 7) return `${days}天前`;
+            return date.toLocaleDateString();
+        }
     </script>
 </body>
 </html>

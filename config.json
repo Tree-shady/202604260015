@@ -1,5 +1,5 @@
 {
-  "theme": "dark",
+  "theme": "light",
   "date_format": "%Y-%m-%d",
   "backup_enabled": true,
   "backup_interval": 7,
