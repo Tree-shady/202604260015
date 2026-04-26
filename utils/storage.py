@@ -1,7 +1,7 @@
-import json
 from datetime import datetime
 from pathlib import Path
-from .config import ENTRIES_DIR, DATE_FORMAT, TAGS_FILE, MOODS_FILE, IMAGES_DIR
+from .config import DATE_FORMAT, IMAGES_DIR
+from .models import get_session, Entry, Tag, Image
 
 # 标签数据缓存
 _tags_cache = None
@@ -10,65 +10,64 @@ _tags_cache = None
 _entry_cache = {}
 
 def ensure_dir():
-    """确保日记存放目录存在"""
-    ENTRIES_DIR.mkdir(exist_ok=True)
+    """确保必要的目录存在"""
     IMAGES_DIR.mkdir(exist_ok=True)
-    # 初始化标签文件
-    if not TAGS_FILE.exists():
-        with open(TAGS_FILE, 'w', encoding='utf-8') as f:
-            json.dump({}, f)
-    # 初始化心情数据文件
-    if not MOODS_FILE.exists():
-        with open(MOODS_FILE, 'w', encoding='utf-8') as f:
-            json.dump({}, f)
 
 def get_today_str():
     """获取今天的日期字符串"""
     return datetime.now().strftime(DATE_FORMAT)
 
 def get_file_path(date_str):
-    """根据日期字符串获取文件路径"""
+    """根据日期字符串获取文件路径（保持向后兼容）"""
+    # 由于现在使用数据库存储，此函数仅用于保持向后兼容
+    from .config import ENTRIES_DIR
     return ENTRIES_DIR / f"{date_str}.txt"
 
 def get_tags():
     """获取标签数据（带缓存）"""
     global _tags_cache
     if _tags_cache is None:
-        with open(TAGS_FILE, 'r', encoding='utf-8') as f:
-            _tags_cache = json.load(f)
+        session = get_session()
+        tags = session.query(Tag).all()
+        _tags_cache = {tag.name: [entry.date_str for entry in tag.entries] for tag in tags}
     return _tags_cache
 
 def save_tags(tags):
     """保存标签数据（清除缓存）"""
     global _tags_cache
-    with open(TAGS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(tags, f, ensure_ascii=False, indent=2)
     _tags_cache = tags  # 更新缓存
 
 def update_tags_index(date_str, tags):
-    """更新标签索引（使用缓存）
+    """更新标签索引
     
     Args:
         date_str: 日期字符串，格式 YYYY-MM-DD
         tags: 标签列表
     """
-    tag_data = get_tags().copy()
+    session = get_session()
     
-    # 移除旧标签关联
-    for tag, dates in list(tag_data.items()):  # 使用 list() 避免遍历中修改
-        if date_str in dates:
-            dates.remove(date_str)
-            if not dates:
-                del tag_data[tag]
+    # 查找对应日记
+    entry = session.query(Entry).filter_by(date_str=date_str).first()
+    if not entry:
+        return
+    
+    # 清除旧标签关联
+    entry.tags = []
     
     # 添加新标签关联
-    for tag in tags:
-        if tag not in tag_data:
-            tag_data[tag] = []
-        if date_str not in tag_data[tag]:
-            tag_data[tag].append(date_str)
+    for tag_name in tags:
+        if tag_name:
+            # 查找或创建标签
+            tag = session.query(Tag).filter_by(name=tag_name).first()
+            if not tag:
+                tag = Tag(name=tag_name)
+                session.add(tag)
+            entry.tags.append(tag)
     
-    save_tags(tag_data)
+    session.commit()
+    clear_entry_cache(date_str)
+    global _tags_cache
+    _tags_cache = None  # 清除标签缓存
 
 def get_entry_content(date_str):
     """获取日记内容（带缓存）
@@ -84,30 +83,16 @@ def get_entry_content(date_str):
     """
     global _entry_cache
     if date_str not in _entry_cache:
-        file_path = get_file_path(date_str)
-        if not file_path.exists():
+        session = get_session()
+        entry = session.query(Entry).filter_by(date_str=date_str).first()
+        if not entry:
             return "", [], ""
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        timestamp = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        tags = [tag.name for tag in entry.tags]
+        content = entry.content
         
-        # 解析内容
-        lines = content.split('\n')
-        timestamp = ""
-        tags = []
-        entry_content = ""
-        
-        if lines and lines[0].startswith("[") and "]" in lines[0]:
-            timestamp = lines[0][1:-1]
-            lines = lines[1:]
-        
-        if lines and lines[0].startswith("Tags: "):
-            tags_str = lines[0][6:]
-            tags = [tag.strip() for tag in tags_str.split(',')]
-            lines = lines[1:]
-        
-        entry_content = '\n'.join(lines)
-        _entry_cache[date_str] = (timestamp, tags, entry_content)
+        _entry_cache[date_str] = (timestamp, tags, content)
     
     return _entry_cache[date_str]
 
@@ -121,8 +106,14 @@ def clear_entry_cache(date_str=None):
         _entry_cache.clear()
 
 def get_entries():
-    """获取所有日记文件"""
-    return sorted(ENTRIES_DIR.glob("*.txt"), reverse=True)
+    """获取所有日记"""
+    session = get_session()
+    entries = session.query(Entry).order_by(Entry.date_str.desc()).all()
+    # 返回模拟的文件路径对象，保持向后兼容
+    class MockPath:
+        def __init__(self, date_str):
+            self.stem = date_str
+    return [MockPath(entry.date_str) for entry in entries]
 
 # 图片处理相关函数
 def upload_image(image_file, date_str):
@@ -148,6 +139,18 @@ def upload_image(image_file, date_str):
     with open(filepath, 'wb') as f:
         f.write(image_file.read())
     
+    # 保存到数据库
+    session = get_session()
+    entry = session.query(Entry).filter_by(date_str=date_str).first()
+    if entry:
+        image = Image(
+            entry_id=entry.id,
+            file_path=str(filepath),
+            filename=filename
+        )
+        session.add(image)
+        session.commit()
+    
     # 返回相对路径
     return f"images/{date_str}/{filename}"
 
@@ -171,13 +174,21 @@ def list_images(date_str):
     Returns:
         list: 图片路径列表
     """
-    date_dir = IMAGES_DIR / date_str
-    if not date_dir.exists():
+    session = get_session()
+    entry = session.query(Entry).filter_by(date_str=date_str).first()
+    if not entry:
         return []
     
+    # 从数据库获取图片
     images = []
-    for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
-        images.extend(date_dir.glob(f"*{ext}"))
+    for image in entry.images:
+        images.append(Path(image.file_path))
+    
+    # 同时检查文件系统，保持向后兼容
+    date_dir = IMAGES_DIR / date_str
+    if date_dir.exists():
+        for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+            images.extend(date_dir.glob(f"*{ext}"))
     
     return images
 
@@ -194,7 +205,14 @@ def delete_image(image_rel_path):
         image_path = get_image_path(image_rel_path)
         if image_path.exists():
             image_path.unlink()
-            return True
-        return False
+        
+        # 从数据库删除
+        session = get_session()
+        image = session.query(Image).filter_by(file_path=str(image_path)).first()
+        if image:
+            session.delete(image)
+            session.commit()
+        
+        return True
     except Exception:
         return False

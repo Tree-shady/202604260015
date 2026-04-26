@@ -240,6 +240,7 @@
             color: var(--text-secondary);
             margin-bottom: 0.25rem;
             display: -webkit-box;
+            line-clamp: 2;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
@@ -265,6 +266,58 @@
             padding: 2rem 1rem;
             text-align: center;
             color: var(--text-muted);
+        }
+
+        /* Toast 弹窗样式 */
+        .toast-container {
+            pointer-events: none;
+        }
+
+        .toast {
+            pointer-events: auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            opacity: 1 !important;
+        }
+
+        .toast-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+
+        .toast-success .toast-header {
+            background-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .toast-danger {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .toast-danger .toast-header {
+            background-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .toast-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+
+        .toast-warning .toast-header {
+            background-color: #ffeeba;
+            color: #856404;
+        }
+
+        .toast-info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+        }
+
+        .toast-info .toast-header {
+            background-color: #bee5eb;
+            color: #0c5460;
         }
 
         .user-info {
@@ -626,34 +679,53 @@
                     </div>
                     <div class="user-info dropdown">
                         <a href="#" class="user-link" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <div class="user-avatar">我</div>
-                            <span class="user-name">用户</span>
+                            <div class="user-avatar">{{ session.get('username', '用户')[0] }}</div>
+                            <span class="user-name">{{ session.get('username', '用户') }}</span>
                             <i class="bi bi-chevron-down"></i>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end user-dropdown" aria-labelledby="userDropdown">
+                            {% if session.get('role') == 'admin' %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin_panel') }}"><i class="bi bi-shield-lock me-2"></i>管理面板</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('settings') }}"><i class="bi bi-gear me-2"></i>设置</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#"><i class="bi bi-question-circle me-2"></i>帮助</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i>退出登录</a></li>
                         </ul>
                     </div>
                 </div>
             </header>
 
-            <!-- 页面内容 -->
-            <main class="page-content">
+            <!-- Toast 容器 -->
+            <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show mb-4" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <div class="toast toast-{{ category }}" role="alert" aria-live="assertive" aria-atomic="true">
+                                <div class="toast-header">
+                                    <strong class="me-auto">
+                                        {% if category == 'success' %}✓ 成功
+                                        {% elif category == 'danger' %}✕ 错误
+                                        {% elif category == 'warning' %}⚠ 警告
+                                        {% elif category == 'info' %}ℹ 信息
+                                        {% else %}{{ category }}
+                                        {% endif %}
+                                    </strong>
+                                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                                </div>
+                                <div class="toast-body">
+                                    {{ message }}
+                                </div>
                             </div>
                         {% endfor %}
                     {% endif %}
                 {% endwith %}
+            </div>
 
-                {% block content %}
-                {% endblock %}
+            <!-- 页面内容 -->
+            <main class="page-content">
+            {% block content %}
+            {% endblock %}
             </main>
         </div>
     </div>
@@ -682,6 +754,15 @@
             document.getElementById('clearAllNotifications')?.addEventListener('click', function(e) {
                 e.preventDefault();
                 clearAllNotifications();
+            });
+
+            // 初始化所有 Toast 弹窗
+            const toastElements = document.querySelectorAll('.toast');
+            toastElements.forEach(function(toastElement) {
+                const toast = new bootstrap.Toast(toastElement, {
+                    delay: 5000 // 5秒后自动关闭
+                });
+                toast.show();
             });
         });
 

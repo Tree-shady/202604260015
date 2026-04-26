@@ -5,9 +5,8 @@
 """
 
 import sys
-import json
 from datetime import datetime
-from pathlib import Path
+from .models import get_session, Notification
 
 # 通知级别
 NOTIFICATION_LEVELS = {
@@ -16,15 +15,6 @@ NOTIFICATION_LEVELS = {
     'error': 'ERROR',
     'success': 'SUCCESS'
 }
-
-# Web端通知数据文件
-NOTIFICATIONS_FILE = Path("notifications.json")
-
-def init_notifications_file():
-    """初始化通知数据文件"""
-    if not NOTIFICATIONS_FILE.exists():
-        with open(NOTIFICATIONS_FILE, 'w', encoding='utf-8') as f:
-            json.dump([], f, ensure_ascii=False, indent=2)
 
 def get_notifications(limit=50, unread_only=False):
     """获取通知列表
@@ -36,15 +26,22 @@ def get_notifications(limit=50, unread_only=False):
     Returns:
         list: 通知列表
     """
-    init_notifications_file()
-
-    with open(NOTIFICATIONS_FILE, 'r', encoding='utf-8') as f:
-        notifications = json.load(f)
-
+    session = get_session()
+    query = session.query(Notification).order_by(Notification.created_at.desc())
+    
     if unread_only:
-        notifications = [n for n in notifications if not n.get('read', False)]
-
-    return notifications[:limit]
+        query = query.filter_by(read=False)
+    
+    notifications = query.limit(limit).all()
+    
+    return [{
+        'id': str(notification.id),
+        'title': notification.title,
+        'message': notification.message,
+        'level': notification.level,
+        'read': notification.read,
+        'created_at': notification.created_at.isoformat()
+    } for notification in notifications]
 
 def add_notification(message, level='info', title=''):
     """添加新通知
@@ -57,26 +54,26 @@ def add_notification(message, level='info', title=''):
     Returns:
         dict: 创建的通知对象
     """
-    init_notifications_file()
-
-    with open(NOTIFICATIONS_FILE, 'r', encoding='utf-8') as f:
-        notifications = json.load(f)
-
-    notification = {
-        'id': datetime.now().strftime('%Y%m%d%H%M%S%f'),
-        'title': title,
-        'message': message,
-        'level': level,
-        'read': False,
-        'created_at': datetime.now().isoformat()
+    session = get_session()
+    
+    notification = Notification(
+        title=title,
+        message=message,
+        level=level,
+        read=False
+    )
+    
+    session.add(notification)
+    session.commit()
+    
+    return {
+        'id': str(notification.id),
+        'title': notification.title,
+        'message': notification.message,
+        'level': notification.level,
+        'read': notification.read,
+        'created_at': notification.created_at.isoformat()
     }
-
-    notifications.insert(0, notification)
-
-    with open(NOTIFICATIONS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(notifications, f, ensure_ascii=False, indent=2)
-
-    return notification
 
 def mark_as_read(notification_id):
     """标记通知为已读
@@ -87,32 +84,22 @@ def mark_as_read(notification_id):
     Returns:
         bool: 是否成功标记
     """
-    init_notifications_file()
-
-    with open(NOTIFICATIONS_FILE, 'r', encoding='utf-8') as f:
-        notifications = json.load(f)
-
-    for notification in notifications:
-        if notification['id'] == notification_id:
-            notification['read'] = True
-            with open(NOTIFICATIONS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(notifications, f, ensure_ascii=False, indent=2)
+    session = get_session()
+    try:
+        notification = session.query(Notification).filter_by(id=int(notification_id)).first()
+        if notification:
+            notification.read = True
+            session.commit()
             return True
-
+    except ValueError:
+        pass
     return False
 
 def mark_all_as_read():
     """标记所有通知为已读"""
-    init_notifications_file()
-
-    with open(NOTIFICATIONS_FILE, 'r', encoding='utf-8') as f:
-        notifications = json.load(f)
-
-    for notification in notifications:
-        notification['read'] = True
-
-    with open(NOTIFICATIONS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(notifications, f, ensure_ascii=False, indent=2)
+    session = get_session()
+    session.query(Notification).filter_by(read=False).update({'read': True})
+    session.commit()
 
 def delete_notification(notification_id):
     """删除通知
@@ -123,19 +110,15 @@ def delete_notification(notification_id):
     Returns:
         bool: 是否成功删除
     """
-    init_notifications_file()
-
-    with open(NOTIFICATIONS_FILE, 'r', encoding='utf-8') as f:
-        notifications = json.load(f)
-
-    original_len = len(notifications)
-    notifications = [n for n in notifications if n['id'] != notification_id]
-
-    if len(notifications) < original_len:
-        with open(NOTIFICATIONS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(notifications, f, ensure_ascii=False, indent=2)
-        return True
-
+    session = get_session()
+    try:
+        notification = session.query(Notification).filter_by(id=int(notification_id)).first()
+        if notification:
+            session.delete(notification)
+            session.commit()
+            return True
+    except ValueError:
+        pass
     return False
 
 def get_unread_count():
@@ -144,13 +127,19 @@ def get_unread_count():
     Returns:
         int: 未读通知数量
     """
-    notifications = get_notifications(unread_only=True)
-    return len(notifications)
+    session = get_session()
+    return session.query(Notification).filter_by(read=False).count()
 
 def clear_all_notifications():
     """清空所有通知"""
-    with open(NOTIFICATIONS_FILE, 'w', encoding='utf-8') as f:
-        json.dump([], f, ensure_ascii=False, indent=2)
+    session = get_session()
+    session.query(Notification).delete()
+    session.commit()
+
+# 兼容旧函数名
+def init_notifications_file():
+    """初始化通知数据文件（兼容旧函数）"""
+    pass
 
 def format_notification(message, level='info'):
     """格式化通知消息"""

@@ -4,10 +4,9 @@
 提供心情数据的管理和存储功能
 """
 
-import json
 from datetime import datetime
-from pathlib import Path
-from .config import MOODS_FILE, DATE_FORMAT
+from .config import DATE_FORMAT
+from .models import get_session, Mood, Entry
 
 # 心情类型定义
 MOOD_TYPES = {
@@ -21,12 +20,6 @@ MOOD_TYPES = {
     'neutral': {'label': '一般', 'emoji': '😐', 'color': '#607D8B'}
 }
 
-def init_moods_file():
-    """初始化心情数据文件"""
-    if not MOODS_FILE.exists():
-        with open(MOODS_FILE, 'w', encoding='utf-8') as f:
-            json.dump({}, f, ensure_ascii=False, indent=2)
-
 def get_mood(date_str):
     """获取指定日期的心情
     
@@ -36,12 +29,14 @@ def get_mood(date_str):
     Returns:
         dict: 心情数据，包含 mood_type 和 note
     """
-    init_moods_file()
-    
-    with open(MOODS_FILE, 'r', encoding='utf-8') as f:
-        moods_data = json.load(f)
-    
-    return moods_data.get(date_str, {'mood_type': 'neutral', 'note': ''})
+    session = get_session()
+    entry = session.query(Entry).filter_by(date_str=date_str).first()
+    if entry and entry.mood:
+        return {
+            'mood_type': entry.mood.mood_type,
+            'note': entry.mood.note
+        }
+    return {'mood_type': 'neutral', 'note': ''}
 
 def save_mood(date_str, mood_type, note=''):
     """保存指定日期的心情
@@ -51,19 +46,20 @@ def save_mood(date_str, mood_type, note=''):
         mood_type: 心情类型
         note: 心情备注
     """
-    init_moods_file()
-    
-    with open(MOODS_FILE, 'r', encoding='utf-8') as f:
-        moods_data = json.load(f)
-    
-    moods_data[date_str] = {
-        'mood_type': mood_type,
-        'note': note,
-        'timestamp': datetime.now().isoformat()
-    }
-    
-    with open(MOODS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(moods_data, f, ensure_ascii=False, indent=2)
+    session = get_session()
+    entry = session.query(Entry).filter_by(date_str=date_str).first()
+    if entry:
+        if entry.mood:
+            entry.mood.mood_type = mood_type
+            entry.mood.note = note
+        else:
+            mood = Mood(
+                entry_id=entry.id,
+                mood_type=mood_type,
+                note=note
+            )
+            session.add(mood)
+        session.commit()
 
 def get_mood_stats(start_date=None, end_date=None):
     """获取心情统计数据
@@ -75,19 +71,27 @@ def get_mood_stats(start_date=None, end_date=None):
     Returns:
         dict: 心情统计数据
     """
-    init_moods_file()
+    session = get_session()
     
-    with open(MOODS_FILE, 'r', encoding='utf-8') as f:
-        moods_data = json.load(f)
+    # 构建查询
+    query = session.query(Mood).join(Entry)
+    if start_date:
+        query = query.filter(Entry.date_str >= start_date)
+    if end_date:
+        query = query.filter(Entry.date_str <= end_date)
     
-    # 过滤日期范围
+    moods = query.all()
+    
+    # 构建心情数据字典
     filtered_moods = {}
-    for date_str, mood_data in moods_data.items():
-        if start_date and date_str < start_date:
-            continue
-        if end_date and date_str > end_date:
-            continue
-        filtered_moods[date_str] = mood_data
+    for mood in moods:
+        entry = session.query(Entry).filter_by(id=mood.entry_id).first()
+        if entry:
+            filtered_moods[entry.date_str] = {
+                'mood_type': mood.mood_type,
+                'note': mood.note,
+                'timestamp': mood.created_at.isoformat()
+            }
     
     # 统计各心情类型的数量
     mood_counts = {}

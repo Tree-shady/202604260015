@@ -540,21 +540,21 @@ def terminal_mode():
 def main():
     """主函数"""
     ensure_dir()
-    
+
     print(f"\n{SECONDARY_COLOR}{'=' * 40}")
     print(f"{PRIMARY_COLOR}{Style.BRIGHT}        个人日记本")
     print(f"{SECONDARY_COLOR}{'=' * 40}")
     print(f"{TEXT_COLOR}1. 终端模式")
-    print(f"{TEXT_COLOR}2. PyQt 图形化模式")
+    print(f"{TEXT_COLOR}2. Web 应用模式")
     print(f"{ERROR_COLOR}0. 退出")
     print(f"{SECONDARY_COLOR}{'=' * 40}")
-    
+
     choice = input("请选择运行模式: ").strip()
-    
+
     if choice == '1':
         terminal_mode()
     elif choice == '2':
-        pyqt_mode()
+        print(f"{SUCCESS_COLOR}请使用 'python app.py' 启动 Web 应用")
     elif choice == '0':
         print(f"{SUCCESS_COLOR}再见！")
     else:

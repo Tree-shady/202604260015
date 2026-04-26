@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, session, jsonify
 import os
 import sys
 import json
@@ -10,11 +10,31 @@ from pathlib import Path
 ENTRIES_DIR = Path("entries")
 IMAGES_DIR = Path("images")
 DATE_FORMAT = "%Y-%m-%d"
-TAGS_FILE = Path("tags.json")
 
 # 确保目录存在
 ENTRIES_DIR.mkdir(exist_ok=True)
 IMAGES_DIR.mkdir(exist_ok=True)
+
+# 导入数据库模型
+from utils.models import init_db, get_session, Entry, Tag, Mood
+
+# 导入用户认证模块
+from utils.auth import (
+    authenticate_user,
+    create_user,
+    get_user_by_username,
+    get_user_by_id,
+    get_users,
+    delete_user,
+    update_user_role,
+    toggle_user_status,
+    is_admin,
+    login_required,
+    admin_required,
+    get_current_user,
+    USER_ROLES,
+    init_users
+)
 
 # 环境配置
 class Config:
@@ -81,20 +101,23 @@ app = Flask(__name__)
 config_class = get_config_class()
 app.config.from_object(config_class)
 
+# 初始化数据库和管理员用户
+try:
+    init_db(app.config['SQLALCHEMY_DATABASE_URI'])
+    init_users()
+except Exception as e:
+    import logging
+    logging.basicConfig(level=logging.ERROR)
+    logger = logging.getLogger(__name__)
+    logger.error(f"数据库初始化失败: {e}")
+    raise
+
 # 设置日志
 logging.basicConfig(
     level=app.config['LOG_LEVEL'],
     format=app.config['LOG_FORMAT']
 )
 logger = logging.getLogger(__name__)
-
-# 初始化标签文件
-def init_tags_file():
-    if not TAGS_FILE.exists():
-        with open(TAGS_FILE, 'w', encoding='utf-8') as f:
-            json.dump({}, f)
-
-init_tags_file()
 
 # 请求日志中间件
 @app.before_request
@@ -157,37 +180,31 @@ def handle_exception(error):
     return redirect(url_for('index'))
 
 def get_tags():
-    with open(TAGS_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    session = get_session()
+    tags = session.query(Tag).all()
+    return {tag.name: [entry.date_str for entry in tag.entries] for tag in tags}
 
 def save_tags(tags):
-    with open(TAGS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(tags, f, ensure_ascii=False, indent=2)
+    # 此函数现在主要用于保持向后兼容
+    pass
 
 def get_entries():
-    return sorted(ENTRIES_DIR.glob("*.txt"), reverse=True)
+    session = get_session()
+    entries = session.query(Entry).order_by(Entry.date_str.desc()).all()
+    # 返回模拟的文件路径对象，保持向后兼容
+    class MockPath:
+        def __init__(self, date_str):
+            self.stem = date_str
+            self.stat = lambda: type('obj', (object,), {'st_size': 0})
+    return [MockPath(entry.date_str) for entry in entries]
 
 def get_entry_content(date_str):
-    file_path = ENTRIES_DIR / f"{date_str}.txt"
-    if file_path.exists():
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        # 提取标签和内容
-        lines = content.split('\n')
-        tags = []
-        timestamp = ""
-
-        if lines and lines[0].startswith("[") and "]" in lines[0]:
-            timestamp = lines[0]
-            lines = lines[1:]
-
-        if lines and lines[0].startswith("Tags: "):
-            tags_str = lines[0][6:]
-            tags = [tag.strip() for tag in tags_str.split(',')]
-            lines = lines[1:]
-
-        content = '\n'.join(lines)
+    session = get_session()
+    entry = session.query(Entry).filter_by(date_str=date_str).first()
+    if entry:
+        timestamp = f"[{entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')}]"
+        tags = [tag.name for tag in entry.tags]
+        content = entry.content
         return timestamp, tags, content
     return None, [], ""
 
@@ -289,8 +306,92 @@ def get_stats():
         'total_tags': total_tags
     }
 
+# 用户认证路由
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """用户登录"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+
+        if not username or not password:
+            flash('请输入用户名和密码', 'danger')
+            return redirect(url_for('login'))
+
+        success, result = authenticate_user(username, password)
+
+        if success:
+            session['user_id'] = result['id']
+            session['username'] = result['username']
+            session['role'] = result['role']
+            session.permanent = True
+            flash(f'欢迎回来，{result["username"]}！', 'success')
+
+            # 如果是管理员且有重定向URL，则跳转到那里
+            next_page = request.args.get('next')
+            if next_page:
+                return redirect(next_page)
+            return redirect(url_for('index'))
+        else:
+            flash(result, 'danger')
+            return redirect(url_for('login'))
+
+    # 如果已经登录，直接跳转到首页
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """用户注册"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not username or not password:
+            flash('请输入用户名和密码', 'danger')
+            return redirect(url_for('register'))
+
+        if len(username) < 3:
+            flash('用户名至少需要3个字符', 'danger')
+            return redirect(url_for('register'))
+
+        if len(password) < 6:
+            flash('密码至少需要6个字符', 'danger')
+            return redirect(url_for('register'))
+
+        if password != confirm_password:
+            flash('两次输入的密码不一致', 'danger')
+            return redirect(url_for('register'))
+
+        success, message = create_user(username, password)
+
+        if success:
+            flash('注册成功，请登录', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash(message, 'danger')
+            return redirect(url_for('register'))
+
+    # 如果已经登录，直接跳转到首页
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+
+    return render_template('register.html')
+
+@app.route('/logout')
+def logout():
+    """用户登出"""
+    username = session.get('username', '用户')
+    session.clear()
+    flash(f'{username} 已退出登录', 'info')
+    return redirect(url_for('login'))
+
 @app.route('/')
 @app.route('/<int:year>/<int:month>')
+@login_required
 def index(year=None, month=None):
     if not year or not month:
         today = datetime.now()
@@ -328,6 +429,7 @@ def index(year=None, month=None):
                          stats=stats)
 
 @app.route('/settings', methods=['GET', 'POST'])
+@login_required
 def settings():
     """设置页面"""
     from utils.config import get_config, save_config
@@ -348,6 +450,7 @@ def settings():
     return render_template('settings.html', config=config)
 
 @app.route('/new', methods=['GET', 'POST'])
+@login_required
 def new_entry():
     if request.method == 'POST':
         date_str = request.form['date']
@@ -393,44 +496,50 @@ def new_entry():
             except Exception as e:
                 logger.error(f"模板渲染失败: {e}")
 
-        # 保存日记
-        file_path = ENTRIES_DIR / f"{date_str}.txt"
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        full_content = f"[{timestamp}]\n"
-        if tags_str:
-            full_content += f"Tags: {tags_str}\n"
-        full_content += content
+        # 保存日记到数据库
+        db_session = get_session()
+        current_user_id = session.get('user_id')
 
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(full_content)
+        # 检查是否已存在该日期的日记
+        existing_entry = db_session.query(Entry).filter_by(user_id=current_user_id, date_str=date_str).first()
+        if existing_entry:
+            flash('该日期的日记已存在', 'danger')
+            return redirect(url_for('new_entry'))
 
-        # 更新标签索引
+        # 创建新日记
+        entry = Entry(
+            user_id=current_user_id,
+            date_str=date_str,
+            content=content,
+            timestamp=datetime.now()
+        )
+        db_session.add(entry)
+        db_session.flush()  # 获取entry.id
+
+        # 处理标签
         if tags_str:
             tags = [tag.strip() for tag in tags_str.split(',')]
-            tag_data = get_tags()
+            for tag_name in tags:
+                if tag_name:
+                    # 查找或创建标签
+                    tag = db_session.query(Tag).filter_by(name=tag_name).first()
+                    if not tag:
+                        tag = Tag(name=tag_name)
+                        db_session.add(tag)
+                    entry.tags.append(tag)
 
-            # 移除旧标签关联
-            for tag, dates in tag_data.items():
-                if date_str in dates:
-                    dates.remove(date_str)
-                    if not dates:
-                        del tag_data[tag]
-
-            # 添加新标签关联
-            for tag in tags:
-                if tag not in tag_data:
-                    tag_data[tag] = []
-                if date_str not in tag_data[tag]:
-                    tag_data[tag].append(date_str)
-
-            save_tags(tag_data)
-        
         # 保存心情数据
         try:
-            import utils.mood as mood_module
-            mood_module.save_mood(date_str, mood_type, mood_note)
+            mood = Mood(
+                entry_id=entry.id,
+                mood_type=mood_type,
+                note=mood_note
+            )
+            db_session.add(mood)
         except Exception as e:
             logger.error(f"保存心情数据失败: {e}")
+
+        db_session.commit()
 
         # 添加通知
         try:
@@ -449,6 +558,7 @@ def new_entry():
     return render_template('new.html', current_date=datetime.now().strftime(DATE_FORMAT))
 
 @app.route('/entry/<date_str>')
+@login_required
 def view_entry(date_str):
     # 验证日期字符串
     if not validate_date_str(date_str):
@@ -480,6 +590,7 @@ def view_entry(date_str):
     return redirect(url_for('index'))
 
 @app.route('/edit/<date_str>', methods=['GET', 'POST'])
+@login_required
 def edit_entry(date_str):
     # 验证日期字符串
     if not validate_date_str(date_str):
@@ -530,51 +641,58 @@ def edit_entry(date_str):
             flash('心情备注长度不能超过200个字符', 'danger')
             return redirect(url_for('edit_entry', date_str=date_str))
 
-        # 如果日期改变，需要处理文件重命名
+        # 保存日记到数据库
+        db_session = get_session()
+        current_user_id = session.get('user_id')
+
+        # 查找原日记
+        entry = db_session.query(Entry).filter_by(user_id=current_user_id, date_str=date_str).first()
+        if not entry:
+            flash('未找到该日记', 'danger')
+            return redirect(url_for('index'))
+
+        # 检查新日期是否已被使用
         if new_date != date_str:
-            old_path = ENTRIES_DIR / f"{date_str}.txt"
-            new_path = ENTRIES_DIR / f"{new_date}.txt"
-            if old_path.exists():
-                old_path.rename(new_path)
+            existing_entry = db_session.query(Entry).filter_by(user_id=current_user_id, date_str=new_date).first()
+            if existing_entry:
+                flash('新日期的日记已存在', 'danger')
+                return redirect(url_for('edit_entry', date_str=date_str))
+            entry.date_str = new_date
 
-        # 保存日记
-        file_path = ENTRIES_DIR / f"{new_date}.txt"
-        new_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        full_content = f"[{new_timestamp}]\n"
-        if tags_str:
-            full_content += f"Tags: {tags_str}\n"
-        full_content += new_content
+        # 更新日记内容
+        entry.content = new_content
+        entry.timestamp = datetime.now()
 
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(full_content)
-
-        # 更新标签索引
+        # 更新标签
+        entry.tags = []
         if tags_str:
             tags_list = [tag.strip() for tag in tags_str.split(',')]
-            tag_data = get_tags()
+            for tag_name in tags_list:
+                if tag_name:
+                    # 查找或创建标签
+                    tag = db_session.query(Tag).filter_by(name=tag_name).first()
+                    if not tag:
+                        tag = Tag(name=tag_name)
+                        db_session.add(tag)
+                    entry.tags.append(tag)
 
-            # 移除旧日期的标签关联
-            for tag, dates in tag_data.items():
-                if date_str in dates:
-                    dates.remove(date_str)
-                    if not dates:
-                        del tag_data[tag]
-
-            # 添加新日期的标签关联
-            for tag in tags_list:
-                if tag not in tag_data:
-                    tag_data[tag] = []
-                if new_date not in tag_data[tag]:
-                    tag_data[tag].append(new_date)
-
-            save_tags(tag_data)
-        
-        # 保存心情数据
+        # 更新心情数据
         try:
-            import utils.mood as mood_module
-            mood_module.save_mood(new_date, mood_type, new_mood_note)
+            mood = db_session.query(Mood).filter_by(entry_id=entry.id).first()
+            if mood:
+                mood.mood_type = mood_type
+                mood.note = new_mood_note
+            else:
+                mood = Mood(
+                    entry_id=entry.id,
+                    mood_type=mood_type,
+                    note=new_mood_note
+                )
+                db_session.add(mood)
         except Exception as e:
             logger.error(f"保存心情数据失败: {e}")
+
+        db_session.commit()
 
         # 添加通知
         try:
@@ -598,31 +716,26 @@ def edit_entry(date_str):
                          mood_note=mood_note)
 
 @app.route('/delete/<date_str>', methods=['POST'])
+@login_required
 def delete_entry(date_str):
     # 验证日期字符串
     if not validate_date_str(date_str):
         flash('无效的日期格式', 'danger')
         return redirect(url_for('index'))
     
-    file_path = ENTRIES_DIR / f"{date_str}.txt"
-    if file_path.exists():
-        file_path.unlink()
-
-        # 更新标签索引
-        tag_data = get_tags()
-        for tag, dates in tag_data.items():
-            if date_str in dates:
-                dates.remove(date_str)
-                if not dates:
-                    del tag_data[tag]
-        save_tags(tag_data)
-
+    db_session = get_session()
+    current_user_id = session.get('user_id')
+    entry = db_session.query(Entry).filter_by(user_id=current_user_id, date_str=date_str).first()
+    if entry:
+        db_session.delete(entry)
+        db_session.commit()
         flash('日记已删除', 'success')
     else:
         flash('未找到该日记', 'danger')
     return redirect(url_for('index'))
 
 @app.route('/tag/<tag>')
+@login_required
 def view_tag(tag):
     # 验证标签名称
     if not validate_tag(tag):
@@ -644,6 +757,7 @@ def view_tag(tag):
     return redirect(url_for('index'))
 
 @app.route('/search', methods=['GET', 'POST'])
+@login_required
 def search():
     """搜索日记"""
     if request.method == 'POST':
@@ -674,6 +788,7 @@ def search():
     return render_template('search.html')
 
 @app.route('/stats')
+@login_required
 def stats():
     """统计页面"""
     stats_data = get_stats()
@@ -772,6 +887,7 @@ def upload_image():
 
 # 导入/导出相关路由
 @app.route('/import-export')
+@login_required
 def import_export():
     """导入/导出页面"""
     return render_template('import_export.html')
@@ -915,6 +1031,116 @@ def clear_notifications_api():
 
     clear_all_notifications()
     return {'success': True}
+
+# 管理员面板路由
+@app.route('/admin')
+@admin_required
+def admin_panel():
+    """管理员面板"""
+    users = get_users()
+    stats = get_stats()
+
+    # 计算用户统计数据
+    total_users = len(users)
+    active_users = sum(1 for u in users if u.get('is_active', True))
+    admin_count = sum(1 for u in users if u.get('role') == 'admin')
+
+    return render_template('admin.html',
+                         users=users,
+                         stats=stats,
+                         total_users=total_users,
+                         active_users=active_users,
+                         admin_count=admin_count)
+
+@app.route('/admin/user/create', methods=['POST'])
+@admin_required
+def admin_create_user():
+    """管理员创建用户"""
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    role = request.form.get('role', 'user')
+
+    if not username or not password:
+        flash('用户名和密码不能为空', 'danger')
+        return redirect(url_for('admin_panel'))
+
+    success, message = create_user(username, password, role)
+
+    if success:
+        # 添加通知
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'管理员创建了新用户：{username}',
+                level='info',
+                title='用户创建'
+            )
+        except Exception:
+            pass
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/user/<username>/delete', methods=['POST'])
+@admin_required
+def admin_delete_user(username):
+    """管理员删除用户"""
+    success, message = delete_user(username)
+
+    if success:
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'用户已被删除：{username}',
+                level='warning',
+                title='用户删除'
+            )
+        except Exception:
+            pass
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/user/<username>/toggle-status', methods=['POST'])
+@admin_required
+def admin_toggle_user_status(username):
+    """管理员切换用户状态"""
+    success, message = toggle_user_status(username)
+
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/user/<username>/update-role', methods=['POST'])
+@admin_required
+def admin_update_user_role(username):
+    """管理员更新用户角色"""
+    new_role = request.form.get('role', 'user')
+
+    success, message = update_user_role(username, new_role)
+
+    if success:
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'用户 {username} 的角色已更新为 {new_role}',
+                level='info',
+                title='权限更新'
+            )
+        except Exception:
+            pass
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+
+    return redirect(url_for('admin_panel'))
 
 def run_production_server():
     """运行生产服务器"""
