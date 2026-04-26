@@ -1,22 +1,47 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h2>新建日记</h2>
-    <form method="POST">
-        <div class="mb-3">
-            <label for="date" class="form-label">日期</label>
-            <input type="text" class="form-control" id="date" name="date" value="{{ current_date }}" required>
-            <small class="form-text text-muted">格式：YYYY-MM-DD</small>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="bi bi-pencil-square"></i> 写日记</h2>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="date" class="form-label">
+                                    <i class="bi bi-calendar3 text-primary me-1"></i>日期
+                                </label>
+                                <input type="text" class="form-control" id="date" name="date" value="{{ current_date }}" required>
+                                <small class="form-text text-muted">格式：YYYY-MM-DD</small>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="tags" class="form-label">
+                                    <i class="bi bi-tags text-primary me-1"></i>标签
+                                </label>
+                                <input type="text" class="form-control" id="tags" name="tags" placeholder="工作, 生活, 学习">
+                                <small class="form-text text-muted">多个标签用逗号分隔</small>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="content" class="form-label">
+                                <i class="bi bi-file-text text-primary me-1"></i>内容
+                            </label>
+                            <textarea class="form-control" id="content" name="content" rows="12" placeholder="今天发生了什么..." required></textarea>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> 保存
+                            </button>
+                            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-lg"></i> 取消
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="mb-3">
-            <label for="tags" class="form-label">标签</label>
-            <input type="text" class="form-control" id="tags" name="tags" placeholder="用逗号分隔多个标签">
-        </div>
-        <div class="mb-3">
-            <label for="content" class="form-label">内容</label>
-            <textarea class="form-control" id="content" name="content" rows="10" required></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">保存</button>
-        <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
-    </form>
+    </div>
 {% endblock %}

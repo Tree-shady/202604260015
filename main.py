@@ -10,6 +10,7 @@ from utils.config import ENTRIES_DIR, DATE_FORMAT, TAGS_FILE
 from utils.storage import ensure_dir, get_today_str, get_file_path, get_tags, save_tags, update_tags_index
 from utils.backup import backup_entries as backup_entries_util, list_backups as list_backups_util, restore_backup as restore_backup_util, delete_backup as delete_backup_util
 from utils.search import search_entries as search_entries_util
+from utils.stats import get_diary_stats, get_tag_stats, parse_relative_date, export_diary, export_all_diaries
 
 init(autoreset=True)
 
@@ -317,6 +318,65 @@ def backup_management():
         else:
             print(f"{Fore.RED}无效选择，请重新输入")
 
+def show_stats():
+    """显示统计信息"""
+    stats = get_diary_stats()
+    
+    print(f"\n{Fore.CYAN}{'=' * 40}")
+    print(f"{Fore.GREEN}{Style.BRIGHT}        日记统计")
+    print(f"{Fore.CYAN}{'=' * 40}")
+    print(f"{Fore.WHITE}日记总数: {Fore.CYAN}{stats['total_diaries']}")
+    print(f"{Fore.WHITE}总字数: {Fore.CYAN}{stats['total_words']}")
+    print(f"{Fore.WHITE}总字符数: {Fore.CYAN}{stats['total_chars']}")
+    
+    # 标签统计
+    tag_stats = get_tag_stats()
+    if tag_stats:
+        print(f"\n{Fore.GREEN}标签使用频率：")
+        for i, tag_stat in enumerate(tag_stats[:10], 1):
+            print(f"  {Fore.CYAN}{i}.{Fore.WHITE} {tag_stat['tag']} - {tag_stat['count']} 篇")
+
+def date_input_with_relative(prompt="请输入日期 (YYYY-MM-DD)"):
+    """支持相对日期的日期输入"""
+    date_str = input(f"{Fore.WHITE}{prompt} (或输入今天/昨天/3天前等): ").strip()
+    
+    # 尝试解析相对日期
+    relative_date = parse_relative_date(date_str)
+    if relative_date:
+        return relative_date
+    
+    # 尝试解析标准日期格式
+    try:
+        datetime.strptime(date_str, DATE_FORMAT)
+        return date_str
+    except ValueError:
+        return None
+
+def export_diary_single():
+    """导出单篇日记"""
+    date_str = date_input_with_relative("请输入要导出的日记日期")
+    if not date_str:
+        print(f"{Fore.RED}日期格式错误或日记不存在")
+        return
+    
+    file_path = ENTRIES_DIR / f"{date_str}.txt"
+    if not file_path.exists():
+        print(f"{Fore.RED}未找到 {date_str} 的日记")
+        return
+    
+    export_path = export_diary(date_str)
+    if export_path:
+        print(f"{Fore.GREEN}日记已导出至 {export_path}")
+
+def export_all():
+    """导出所有日记"""
+    print(f"\n{Fore.WHITE}正在导出所有日记...")
+    exported, export_path = export_all_diaries()
+    if exported:
+        print(f"{Fore.GREEN}已导出 {len(exported)} 篇日记至 {export_path}")
+    else:
+        print(f"{Fore.YELLOW}暂无日记可导出")
+
 def show_menu():
     """显示菜单"""
     print(f"\n{Fore.CYAN}{'=' * 40}")
@@ -331,6 +391,8 @@ def show_menu():
     print(f"{Fore.WHITE}7. 编辑日记")
     print(f"{Fore.WHITE}8. 显示标签")
     print(f"{Fore.WHITE}9. 备份管理")
+    print(f"{Fore.WHITE}A. 日记统计")
+    print(f"{Fore.WHITE}B. 导出日记")
     print(f"{Fore.RED}0. 退出")
     print(f"{Fore.CYAN}{'=' * 40}")
 
@@ -408,7 +470,25 @@ def terminal_mode():
         
         elif choice == '9':
             backup_management()
-
+        
+        elif choice.upper() == 'A':
+            show_stats()
+        
+        elif choice.upper() == 'B':
+            print(f"\n{Fore.CYAN}{'=' * 40}")
+            print(f"{Fore.GREEN}{Style.BRIGHT}        导出日记")
+            print(f"{Fore.CYAN}{'=' * 40}")
+            print(f"{Fore.WHITE}1. 导出单篇日记")
+            print(f"{Fore.WHITE}2. 导出所有日记")
+            print(f"{Fore.RED}0. 返回")
+            print(f"{Fore.CYAN}{'=' * 40}")
+            
+            export_choice = input("请选择: ").strip()
+            if export_choice == '1':
+                export_diary_single()
+            elif export_choice == '2':
+                export_all()
+        
         elif choice == '0':
             backup_entries()
             print(f"{Fore.GREEN}再见！")

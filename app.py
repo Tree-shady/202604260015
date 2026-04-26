@@ -58,11 +58,122 @@ def get_entry_content(date_str):
         return timestamp, tags, content
     return None, [], ""
 
+def get_calendar_data(year, month):
+    """获取日历数据"""
+    from calendar import monthrange, weekday
+    
+    # 获取月份的天数和第一天是星期几
+    days_in_month = monthrange(year, month)[1]
+    first_day_weekday = weekday(year, month, 1)  # 0=Monday, 6=Sunday
+    
+    # 调整为 0=Sunday, 6=Saturday
+    first_day_weekday = (first_day_weekday + 1) % 7
+    
+    # 生成日历数据
+    calendar_days = []
+    
+    # 添加上个月的填充天数
+    prev_month_days = first_day_weekday
+    if prev_month_days > 0:
+        prev_year, prev_month = (year, month-1) if month > 1 else (year-1, 12)
+        prev_month_days_total = monthrange(prev_year, prev_month)[1]
+        for day in range(prev_month_days_total - prev_month_days + 1, prev_month_days_total + 1):
+            calendar_days.append({
+                'day': day,
+                'month': prev_month,
+                'year': prev_year,
+                'is_other_month': True,
+                'has_entry': False
+            })
+    
+    # 添加当前月的天数
+    today = datetime.now()
+    current_year = today.year
+    current_month = today.month
+    current_day = today.day
+    
+    for day in range(1, days_in_month + 1):
+        date_str = f"{year:04d}-{month:02d}-{day:02d}"
+        file_path = ENTRIES_DIR / f"{date_str}.txt"
+        is_today = (year == current_year and month == current_month and day == current_day)
+        
+        calendar_days.append({
+            'day': day,
+            'month': month,
+            'year': year,
+            'is_other_month': False,
+            'is_today': is_today,
+            'has_entry': file_path.exists(),
+            'date_str': date_str
+        })
+    
+    # 添加下个月的填充天数
+    total_days = len(calendar_days)
+    remaining_days = (7 - (total_days % 7)) % 7
+    if remaining_days > 0:
+        next_year, next_month = (year, month+1) if month < 12 else (year+1, 1)
+        for day in range(1, remaining_days + 1):
+            calendar_days.append({
+                'day': day,
+                'month': next_month,
+                'year': next_year,
+                'is_other_month': True,
+                'has_entry': False
+            })
+    
+    return calendar_days
+
+def get_stats():
+    """获取统计数据"""
+    entries = get_entries()
+    total_entries = len(entries)
+    
+    # 计算总字数
+    total_words = 0
+    total_chars = 0
+    
+    for entry in entries:
+        with open(entry, 'r', encoding='utf-8') as f:
+            content = f.read()
+            lines = content.split('\n')
+            # 移除时间戳和标签行
+            if lines and lines[0].startswith("[") and "]" in lines[0]:
+                lines = lines[1:]
+            if lines and lines[0].startswith("Tags: "):
+                lines = lines[1:]
+            content = '\n'.join(lines)
+            total_chars += len(content)
+            total_words += len(content.split())
+    
+    # 获取标签统计
+    tag_data = get_tags()
+    total_tags = len(tag_data)
+    
+    return {
+        'total_entries': total_entries,
+        'total_words': total_words,
+        'total_chars': total_chars,
+        'total_tags': total_tags
+    }
+
 @app.route('/')
 def index():
+    today = datetime.now()
+    year = today.year
+    month = today.month
+    
     entries = get_entries()
     tag_data = get_tags()
-    return render_template('index.html', entries=entries, tags=tag_data)
+    calendar_data = get_calendar_data(year, month)
+    stats = get_stats()
+    
+    return render_template('index.html', 
+                         entries=entries, 
+                         tags=tag_data, 
+                         calendar_data=calendar_data,
+                         current_year=year,
+                         current_month=month,
+                         stats=stats)
 
 @app.route('/new', methods=['GET', 'POST'])
 def new_entry():
