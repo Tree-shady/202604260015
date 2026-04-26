@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from .config import ENTRIES_DIR, DATE_FORMAT, TAGS_FILE, IMAGES_DIR
+from .config import ENTRIES_DIR, DATE_FORMAT, TAGS_FILE, MOODS_FILE, IMAGES_DIR
 
 # 标签数据缓存
 _tags_cache = None
@@ -16,6 +16,10 @@ def ensure_dir():
     # 初始化标签文件
     if not TAGS_FILE.exists():
         with open(TAGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({}, f)
+    # 初始化心情数据文件
+    if not MOODS_FILE.exists():
+        with open(MOODS_FILE, 'w', encoding='utf-8') as f:
             json.dump({}, f)
 
 def get_today_str():

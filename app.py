@@ -353,6 +353,9 @@ def new_entry():
         date_str = request.form['date']
         tags_str = request.form['tags']
         content = request.form['content']
+        template_id = request.form.get('template', '')
+        mood_type = request.form.get('mood', 'neutral')
+        mood_note = request.form.get('mood_note', '')
 
         if not date_str or not content:
             flash('日期和内容不能为空', 'danger')
@@ -363,6 +366,14 @@ def new_entry():
         except ValueError:
             flash('日期格式错误，请使用 YYYY-MM-DD 格式', 'danger')
             return redirect(url_for('new_entry'))
+
+        # 处理模板
+        if template_id:
+            try:
+                import utils.templates as template_module
+                content = template_module.render_template(template_id, date_str)
+            except Exception as e:
+                logger.error(f"模板渲染失败: {e}")
 
         # 保存日记
         file_path = ENTRIES_DIR / f"{date_str}.txt"
@@ -395,6 +406,13 @@ def new_entry():
                     tag_data[tag].append(date_str)
 
             save_tags(tag_data)
+        
+        # 保存心情数据
+        try:
+            import utils.mood as mood_module
+            mood_module.save_mood(date_str, mood_type, mood_note)
+        except Exception as e:
+            logger.error(f"保存心情数据失败: {e}")
 
         flash('日记已保存', 'success')
         return redirect(url_for('index'))
@@ -410,7 +428,25 @@ def view_entry(date_str):
     
     timestamp, tags, content = get_entry_content(date_str)
     if content:
-        return render_template('view.html', date_str=date_str, timestamp=timestamp, tags=tags, content=content)
+        # 获取心情数据
+        mood_info = None
+        mood_note = ''
+        try:
+            import utils.mood as mood_module
+            mood_data = mood_module.get_mood(date_str)
+            mood_type = mood_data.get('mood_type', 'neutral')
+            mood_note = mood_data.get('note', '')
+            mood_info = mood_module.MOOD_TYPES.get(mood_type, mood_module.MOOD_TYPES['neutral'])
+        except Exception as e:
+            logger.error(f"获取心情数据失败: {e}")
+        
+        return render_template('view.html', 
+                             date_str=date_str, 
+                             timestamp=timestamp, 
+                             tags=tags, 
+                             content=content,
+                             mood_info=mood_info,
+                             mood_note=mood_note)
     flash('未找到该日记', 'danger')
     return redirect(url_for('index'))
 
@@ -426,10 +462,23 @@ def edit_entry(date_str):
         flash('未找到该日记', 'danger')
         return redirect(url_for('index'))
 
+    # 获取心情数据
+    current_mood = 'neutral'
+    mood_note = ''
+    try:
+        import utils.mood as mood_module
+        mood_data = mood_module.get_mood(date_str)
+        current_mood = mood_data.get('mood_type', 'neutral')
+        mood_note = mood_data.get('note', '')
+    except Exception as e:
+        logger.error(f"获取心情数据失败: {e}")
+
     if request.method == 'POST':
         new_date = request.form['date']
         tags_str = request.form['tags']
         new_content = request.form['content']
+        mood_type = request.form.get('mood', 'neutral')
+        new_mood_note = request.form.get('mood_note', '')
 
         if not new_date or not new_content:
             flash('日期和内容不能为空', 'danger')
@@ -479,11 +528,23 @@ def edit_entry(date_str):
                     tag_data[tag].append(new_date)
 
             save_tags(tag_data)
+        
+        # 保存心情数据
+        try:
+            import utils.mood as mood_module
+            mood_module.save_mood(new_date, mood_type, new_mood_note)
+        except Exception as e:
+            logger.error(f"保存心情数据失败: {e}")
 
         flash('日记已更新', 'success')
         return redirect(url_for('view_entry', date_str=new_date))
 
-    return render_template('edit.html', date_str=date_str, tags=tags, content=content)
+    return render_template('edit.html', 
+                         date_str=date_str, 
+                         tags=tags, 
+                         content=content,
+                         current_mood=current_mood,
+                         mood_note=mood_note)
 
 @app.route('/delete/<date_str>', methods=['POST'])
 def delete_entry(date_str):
@@ -657,6 +718,81 @@ def upload_image():
         logger.error(f"图片上传失败: {e}")
         flash('图片上传失败', 'danger')
         return redirect(request.referrer or url_for('index'))
+
+# 导入/导出相关路由
+@app.route('/import-export')
+def import_export():
+    """导入/导出页面"""
+    return render_template('import_export.html')
+
+@app.route('/export', methods=['POST'])
+def export_data():
+    """导出数据"""
+    export_format = request.form.get('format')
+    
+    try:
+        import utils.import_export as ie
+        
+        if export_format == 'json':
+            file_path = ie.export_to_json()
+        elif export_format == 'csv':
+            file_path = ie.export_to_csv()
+        elif export_format == 'markdown':
+            file_path = ie.export_to_markdown()
+        elif export_format == 'zip':
+            file_path = ie.export_to_zip()
+        else:
+            flash('无效的导出格式', 'danger')
+            return redirect(url_for('import_export'))
+        
+        flash(f'导出成功，文件保存至: {file_path}', 'success')
+    except Exception as e:
+        logger.error(f"导出失败: {e}")
+        flash('导出失败', 'danger')
+    
+    return redirect(url_for('import_export'))
+
+@app.route('/import', methods=['POST'])
+def import_data():
+    """导入数据"""
+    if 'file' not in request.files:
+        flash('请选择文件', 'danger')
+        return redirect(url_for('import_export'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('请选择文件', 'danger')
+        return redirect(url_for('import_export'))
+    
+    try:
+        import utils.import_export as ie
+        
+        # 保存上传的文件
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp:
+            temp.write(file.read())
+            temp_path = temp.name
+        
+        # 根据文件类型导入
+        file_ext = Path(file.filename).suffix.lower()
+        if file_ext == '.json':
+            result = ie.import_from_json(temp_path)
+        elif file_ext == '.zip':
+            result = ie.import_from_zip(temp_path)
+        else:
+            flash('只支持 JSON 和 ZIP 格式的文件', 'danger')
+            return redirect(url_for('import_export'))
+        
+        # 清理临时文件
+        import os
+        os.unlink(temp_path)
+        
+        flash(f'导入成功: {result["success"]} 成功, {result["failed"]} 失败', 'success')
+    except Exception as e:
+        logger.error(f"导入失败: {e}")
+        flash('导入失败', 'danger')
+    
+    return redirect(url_for('import_export'))
 
 def run_production_server():
     """运行生产服务器"""

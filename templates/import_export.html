@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="bi bi-upload"></i> 数据导入/导出</h2>
+                </div>
+                <div class="card-body">
+                    <!-- 导出部分 -->
+                    <div class="mb-6">
+                        <h3><i class="bi bi-download text-primary"></i> 导出数据</h3>
+                        <div class="bg-light p-4 rounded">
+                            <form method="POST" action="{{ url_for('export_data') }}">
+                                <div class="mb-3">
+                                    <label for="format" class="form-label">选择导出格式</label>
+                                    <select class="form-select" id="format" name="format" required>
+                                        <option value="json">JSON 格式</option>
+                                        <option value="csv">CSV 格式</option>
+                                        <option value="markdown">Markdown 格式</option>
+                                        <option value="zip">ZIP 格式</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-download"></i> 导出
+                                </button>
+                            </form>
+                            <div class="mt-3 text-muted small">
+                                <p><strong>JSON 格式</strong>：包含所有日记和标签数据，适合数据备份</p>
+                                <p><strong>CSV 格式</strong>：适合在 Excel 等表格软件中查看</p>
+                                <p><strong>Markdown 格式</strong>：每个日记生成一个 Markdown 文件</p>
+                                <p><strong>ZIP 格式</strong>：包含所有原始文件，适合完整备份</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 导入部分 -->
+                    <div class="mb-4">
+                        <h3><i class="bi bi-upload text-primary"></i> 导入数据</h3>
+                        <div class="bg-light p-4 rounded">
+                            <form method="POST" action="{{ url_for('import_data') }}" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label for="file" class="form-label">选择导入文件</label>
+                                    <input type="file" class="form-control" id="file" name="file" accept=".json,.zip" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-upload"></i> 导入
+                                </button>
+                            </form>
+                            <div class="mt-3 text-muted small">
+                                <p><strong>支持的格式</strong>：</p>
+                                <p><strong>JSON 格式</strong>：从本应用导出的 JSON 文件</p>
+                                <p><strong>ZIP 格式</strong>：从本应用导出的 ZIP 文件</p>
+                                <p class="text-warning"><i class="bi bi-exclamation-triangle"></i> 导入数据会覆盖现有数据，请谨慎操作</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

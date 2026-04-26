@@ -17,19 +17,124 @@
                                 <input type="text" class="form-control" id="date" name="date" value="{{ current_date }}" required>
                                 <small class="form-text text-muted">格式：YYYY-MM-DD</small>
                             </div>
-                            <div class="col-md-8">
-                                <label for="tags" class="form-label">
-                                    <i class="bi bi-tags text-primary me-1"></i>标签
+                            <div class="col-md-4">
+                                <label class="form-label">
+                                    <i class="bi bi-emoji-smile text-primary me-1"></i>心情
                                 </label>
-                                <input type="text" class="form-control" id="tags" name="tags" placeholder="工作, 生活, 学习">
-                                <small class="form-text text-muted">多个标签用逗号分隔</small>
+                                <div class="d-flex flex-wrap gap-2">
+                                    {% set moods = {
+                                        'happy': '😊 开心',
+                                        'excited': '🤩 兴奋',
+                                        'calm': '😌 平静',
+                                        'tired': '😴 疲惫',
+                                        'sad': '😢 难过',
+                                        'angry': '😠 生气',
+                                        'anxious': '😰 焦虑',
+                                        'neutral': '😐 一般'
+                                    } %}
+                                    {% for mood_type, mood_label in moods.items() %}
+                                        <label class="btn btn-outline-primary">
+                                            <input type="radio" name="mood" value="{{ mood_type }}" class="d-none" {% if loop.first %}checked{% endif %}>
+                                            {{ mood_label }}
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="mood_note" class="form-label">
+                                    <i class="bi bi-note text-primary me-1"></i>心情备注
+                                </label>
+                                <input type="text" class="form-control" id="mood_note" name="mood_note" placeholder="今天的心情如何...">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tags" class="form-label">
+                                <i class="bi bi-tags text-primary me-1"></i>标签
+                            </label>
+                            <input type="text" class="form-control" id="tags" name="tags" placeholder="工作, 生活, 学习">
+                            <small class="form-text text-muted">多个标签用逗号分隔</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="template" class="form-label">
+                                <i class="bi bi-file-earmark-text text-primary me-1"></i>模板
+                            </label>
+                            <div class="d-flex gap-2">
+                                <select class="form-select" id="template" name="template" style="flex: 1;">
+                                    <option value="">选择模板</option>
+                                    <option value="daily">日常日记</option>
+                                    <option value="work">工作日记</option>
+                                    <option value="study">学习笔记</option>
+                                    <option value="travel">旅行日记</option>
+                                    <option value="health">健康日记</option>
+                                    <option value="gratitude">感恩日记</option>
+                                    <option value="dream">梦境记录</option>
+                                    <option value="project">项目计划</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" id="previewTemplateBtn">
+                                    <i class="bi bi-eye"></i> 预览
+                                </button>
                             </div>
                         </div>
                         <div class="mb-4">
-                            <label for="content" class="form-label">
-                                <i class="bi bi-file-text text-primary me-1"></i>内容
-                            </label>
+                            <div class="d-flex justify-content-between mb-2">
+                                <label for="content" class="form-label">
+                                    <i class="bi bi-file-text text-primary me-1"></i>内容
+                                </label>
+                                <div class="d-flex gap-2">
+                                    <span class="text-muted small" id="wordCount">0 字</span>
+                                    <button type="button" class="btn btn-secondary" id="uploadImageBtn">
+                                        <i class="bi bi-image"></i> 插入图片
+                                    </button>
+                                </div>
+                            </div>
                             <textarea class="form-control" id="content" name="content" rows="12" placeholder="今天发生了什么..." required></textarea>
+                        </div>
+                        
+                        <!-- 模板预览模态框 -->
+                        <div class="modal fade" id="templatePreviewModal" tabindex="-1" aria-labelledby="templatePreviewModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="templatePreviewModalLabel">模板预览</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div id="templatePreviewContent" class="bg-light p-4 rounded"></div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                                        <button type="button" class="btn btn-primary" id="useTemplateBtn">使用此模板</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 图片上传模态框 -->
+                        <div class="modal fade" id="imageUploadModal" tabindex="-1" aria-labelledby="imageUploadModalLabel" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="imageUploadModalLabel">上传图片</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <form id="imageUploadForm" action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
+                                            <input type="hidden" name="date" value="{{ current_date }}">
+                                            <div class="mb-3">
+                                                <label for="image" class="form-label">选择图片</label>
+                                                <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
+                                            </div>
+                                            <div class="text-muted small">
+                                                支持 PNG、JPG、JPEG、GIF、WebP 格式，最大 10MB
+                                            </div>
+                                        </form>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                        <button type="button" class="btn btn-primary" id="submitImageUpload">上传</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
@@ -44,4 +149,128 @@
             </div>
         </div>
     </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 图片上传按钮
+            const uploadImageBtn = document.getElementById('uploadImageBtn');
+            const imageUploadModal = new bootstrap.Modal(document.getElementById('imageUploadModal'));
+            const imageUploadForm = document.getElementById('imageUploadForm');
+            const submitImageUpload = document.getElementById('submitImageUpload');
+            const contentTextarea = document.getElementById('content');
+            const wordCountElement = document.getElementById('wordCount');
+            
+            // 字数统计函数
+            function updateWordCount() {
+                const content = contentTextarea.value;
+                const wordCount = content.length;
+                wordCountElement.textContent = `${wordCount} 字`;
+            }
+            
+            // 初始统计
+            updateWordCount();
+            
+            // 实时统计
+            contentTextarea.addEventListener('input', updateWordCount);
+            
+            // 模板相关
+            const templateSelect = document.getElementById('template');
+            const previewTemplateBtn = document.getElementById('previewTemplateBtn');
+            const templatePreviewModal = new bootstrap.Modal(document.getElementById('templatePreviewModal'));
+            const templatePreviewContent = document.getElementById('templatePreviewContent');
+            const useTemplateBtn = document.getElementById('useTemplateBtn');
+            let currentTemplate = '';
+            
+            // 模板预览
+            previewTemplateBtn.addEventListener('click', function() {
+                const templateId = templateSelect.value;
+                if (!templateId) {
+                    alert('请选择一个模板');
+                    return;
+                }
+                
+                currentTemplate = templateId;
+                
+                // 模板内容
+                const templates = {
+                    'daily': `# 今日记录\n\n## 今日心情\n\n## 今日事件\n- \n- \n- \n\n## 今日感悟\n\n## 明日计划\n- \n- \n- \n`,
+                    'work': `# 工作日志\n\n## 今日任务\n- [ ] \n- [ ] \n- [ ] \n\n## 完成情况\n- [x] \n- [x] \n- [x] \n\n## 遇到的问题\n\n## 解决方法\n\n## 明日计划\n- \n- \n- \n`,
+                    'study': `# 学习笔记\n\n## 学习内容\n\n## 重点难点\n\n## 学习收获\n\n## 疑问和思考\n\n## 下一步计划\n`,
+                    'travel': `# 旅行日记\n\n## 日期和地点\n\n## 今日行程\n- \n- \n- \n\n## 所见所闻\n\n## 美食推荐\n\n## 心情感受\n\n## 明日安排\n`,
+                    'health': `# 健康日记\n\n## 今日身体状况\n- 体重: \n- 血压: \n- 睡眠: \n\n## 今日运动\n- 类型: \n- 时长: \n- 强度: \n\n## 今日饮食\n- 早餐: \n- 午餐: \n- 晚餐: \n\n## 今日感受\n\n## 健康目标\n`,
+                    'gratitude': `# 感恩日记\n\n## 今日感恩\n1. \n2. \n3. \n\n## 今日收获\n\n## 今日成长\n\n## 明日期待\n`,
+                    'dream': `# 梦境记录\n\n## 日期\n{{ date }}\n\n## 梦境内容\n\n## 梦中感受\n\n## 醒后思考\n\n## 可能的含义\n`,
+                    'project': `# 项目计划\n\n## 项目名称\n\n## 当前进展\n\n## 下一步计划\n- \n- \n- \n\n## 遇到的问题\n\n## 解决方案\n\n## 时间节点\n`
+                };
+                
+                const templateContent = templates[templateId].replace('{{ date }}', document.getElementById('date').value);
+                templatePreviewContent.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit; background: none; border: none; padding: 0;">${templateContent}</pre>`;
+                templatePreviewModal.show();
+            });
+            
+            // 使用模板
+            useTemplateBtn.addEventListener('click', function() {
+                if (!currentTemplate) return;
+                
+                const templates = {
+                    'daily': `# 今日记录\n\n## 今日心情\n\n## 今日事件\n- \n- \n- \n\n## 今日感悟\n\n## 明日计划\n- \n- \n- \n`,
+                    'work': `# 工作日志\n\n## 今日任务\n- [ ] \n- [ ] \n- [ ] \n\n## 完成情况\n- [x] \n- [x] \n- [x] \n\n## 遇到的问题\n\n## 解决方法\n\n## 明日计划\n- \n- \n- \n`,
+                    'study': `# 学习笔记\n\n## 学习内容\n\n## 重点难点\n\n## 学习收获\n\n## 疑问和思考\n\n## 下一步计划\n`,
+                    'travel': `# 旅行日记\n\n## 日期和地点\n\n## 今日行程\n- \n- \n- \n\n## 所见所闻\n\n## 美食推荐\n\n## 心情感受\n\n## 明日安排\n`,
+                    'health': `# 健康日记\n\n## 今日身体状况\n- 体重: \n- 血压: \n- 睡眠: \n\n## 今日运动\n- 类型: \n- 时长: \n- 强度: \n\n## 今日饮食\n- 早餐: \n- 午餐: \n- 晚餐: \n\n## 今日感受\n\n## 健康目标\n`,
+                    'gratitude': `# 感恩日记\n\n## 今日感恩\n1. \n2. \n3. \n\n## 今日收获\n\n## 今日成长\n\n## 明日期待\n`,
+                    'dream': `# 梦境记录\n\n## 日期\n{{ date }}\n\n## 梦境内容\n\n## 梦中感受\n\n## 醒后思考\n\n## 可能的含义\n`,
+                    'project': `# 项目计划\n\n## 项目名称\n\n## 当前进展\n\n## 下一步计划\n- \n- \n- \n\n## 遇到的问题\n\n## 解决方案\n\n## 时间节点\n`
+                };
+                
+                const templateContent = templates[currentTemplate].replace('{{ date }}', document.getElementById('date').value);
+                contentTextarea.value = templateContent;
+                updateWordCount(); // 更新字数统计
+                templatePreviewModal.hide();
+            });
+            
+            // 打开图片上传模态框
+            uploadImageBtn.addEventListener('click', function() {
+                imageUploadModal.show();
+            });
+            
+            // 提交图片上传
+            submitImageUpload.addEventListener('click', function() {
+                const formData = new FormData(imageUploadForm);
+                
+                fetch("{{ url_for('upload_image') }}", {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 插入图片到文本框
+                        const imageUrl = data.url;
+                        const imageMarkdown = `![图片](${imageUrl})\n\n`;
+                        
+                        // 获取当前光标位置
+                        const start = contentTextarea.selectionStart;
+                        const end = contentTextarea.selectionEnd;
+                        const text = contentTextarea.value;
+                        
+                        // 插入图片链接
+                        contentTextarea.value = text.substring(0, start) + imageMarkdown + text.substring(end);
+                        
+                        // 关闭模态框
+                        imageUploadModal.hide();
+                        
+                        // 清空文件输入
+                        document.getElementById('image').value = '';
+                    } else {
+                        alert('图片上传失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('上传失败:', error);
+                    alert('图片上传失败');
+                });
+            });
+        });
+    </script>
 {% endblock %}

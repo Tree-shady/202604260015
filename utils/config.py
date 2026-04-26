@@ -4,6 +4,7 @@ from pathlib import Path
 CONFIG_FILE = Path("config.json")
 ENTRIES_DIR = Path("entries")
 TAGS_FILE = Path("tags.json")
+MOODS_FILE = Path("moods.json")
 IMAGES_DIR = Path("images")
 DATE_FORMAT = "%Y-%m-%d"
 

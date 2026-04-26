@@ -17,6 +17,19 @@
                         </div>
                     {% endif %}
 
+                    {% if mood_info %}
+                        <div class="mb-4">
+                            <h5 class="mb-2"><i class="bi bi-emoji-smile text-primary"></i> 心情</h5>
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="fs-4">{{ mood_info.emoji }}</span>
+                                <span class="fw-bold">{{ mood_info.label }}</span>
+                                {% if mood_note %}
+                                    <span class="text-muted">{{ mood_note }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+
                     {% if tags %}
                         <div class="mb-4">
                             <h5 class="mb-2"><i class="bi bi-tags text-primary"></i> 标签</h5>
@@ -33,7 +46,22 @@
                     <div class="mb-4">
                         <h5 class="mb-2"><i class="bi bi-file-text text-primary"></i> 内容</h5>
                         <div class="bg-light p-4 rounded">
-                            <pre class="text-wrap" style="white-space: pre-wrap; font-family: inherit; background: none; border: none; padding: 0;">{{ content }}</pre>
+                            <div style="white-space: pre-wrap; font-family: inherit;">
+                                {% set content_lines = content.split('\n') %}
+                                {% for line in content_lines %}
+                                    {% if line.startswith('![') and '](' in line %}
+                                        <!-- 处理图片 -->
+                                        {% set parts = line.split('](') %}
+                                        {% set alt = parts[0].split('![')[1] %}
+                                        {% set url = parts[1].rstrip(')') %}
+                                        <div class="my-3 text-center">
+                                            <img src="{{ url }}" alt="{{ alt }}" class="img-fluid rounded max-width: 100%; height: auto;">
+                                        </div>
+                                    {% else %}
+                                        {{ line }}<br>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
 

@@ -11,9 +11,11 @@
 - 🔍 搜索日记内容（支持多关键词、模糊搜索、显示匹配上下文）
 - 📊 统计功能（日记数量、字数统计、标签使用频率）
 - 📤 导出功能（导出单篇或所有日记为 Markdown 文件）
+- 📥 导入功能（从 Markdown 文件导入日记）
 - 🗑️ 删除日记
 - 💾 退出时自动备份
 - 🏷️ 标签系统（支持按标签分类）
+- 😊 心情记录（记录每日心情状态）
 - 🔄 备份管理（列出、恢复、删除备份）
 - 📝 日志记录（记录操作和错误）
 - 🔔 通知功能（操作反馈和提醒）
@@ -75,6 +77,7 @@ python app.py
 - **标签浏览** - 按标签分类浏览日记
 - **统计页面** - 查看日记统计数据和标签使用频率
 - **设置页面** - 管理应用配置和个性化选项
+- **导入导出** - 导入或导出日记为 Markdown 文件
 
 ## 目录结构
 
@@ -92,7 +95,10 @@ python app.py
 │   ├── logger.py    # 日志记录
 │   ├── notification.py # 通知功能
 │   ├── settings.py  # 设置管理
-│   └── gui.py       # GUI 相关功能
+│   ├── gui.py       # GUI 相关功能
+│   ├── mood.py      # 心情记录功能
+│   ├── import_export.py # 导入导出功能
+│   └── templates.py # 模板渲染
 ├── templates/       # Web 模板文件
 │   ├── base.html    # 基础模板
 │   ├── index.html   # 首页
@@ -102,7 +108,8 @@ python app.py
 │   ├── tag.html     # 标签页面
 │   ├── search.html  # 搜索结果页面
 │   ├── settings.html # 设置页面
-│   └── stats.html   # 统计页面
+│   ├── stats.html   # 统计页面
+│   └── import_export.html # 导入导出页面
 ├── entries/         # 日记存放目录
 ├── logs/            # 日志目录
 ├── tags.json        # 标签索引文件
@@ -161,3 +168,4 @@ B. 导出日记
 
 - 导出单篇日记为 Markdown 文件
 - 导出所有日记到指定目录
+- 导入 Markdown 文件作为日记

@@ -492,6 +492,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{{ url_for('import_export') }}" class="nav-link {% if request.endpoint == 'import_export' %}active{% endif %}">
+                        <i class="bi bi-upload"></i>
+                        导入/导出
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}">
                         <i class="bi bi-gear"></i>
                         设置
