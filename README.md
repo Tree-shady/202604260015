@@ -36,17 +36,16 @@ pip install -r requirements.txt
 
 ## 运行方式
 
-### 1. 终端模式
+### 1. 主程序（支持多种模式）
 ```bash
 python main.py
 ```
+运行后会提示选择模式：
+- 1. 终端模式
+- 2. PyQt 图形化模式
+- 0. 退出
 
-### 2. PyQt 图形化界面
-```bash
-python pyqt_app.py
-```
-
-### 3. Flask Web 应用
+### 2. Flask Web 应用
 ```bash
 python app.py
 ```
@@ -56,8 +55,7 @@ python app.py
 
 ```
 .
-├── main.py          # 终端版主程序
-├── pyqt_app.py      # PyQt 图形化界面
+├── main.py          # 主程序（包含终端模式和 PyQt 图形化模式）
 ├── app.py           # Flask Web 应用
 ├── entries/         # 日记存放目录
 ├── templates/       # Web 模板文件
@@ -82,4 +80,4 @@ python app.py
 ## 数据备份
 
 - 退出时会自动备份 `entries` 文件夹
-- 备份文件格式：`entries_backup_年月日_时分秒`
+- 备份文件格式：`entries_backup_年-月-日_时-分-秒`
