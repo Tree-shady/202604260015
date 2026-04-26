@@ -367,10 +367,28 @@ def new_entry():
             flash('日期格式错误，请使用 YYYY-MM-DD 格式', 'danger')
             return redirect(url_for('new_entry'))
 
+        # 验证模板ID
+        if template_id:
+            import utils.templates as template_module
+            valid_templates = template_module.get_available_templates()
+            if template_id not in valid_templates:
+                flash('无效的模板ID', 'danger')
+                return redirect(url_for('new_entry'))
+
+        # 验证心情类型
+        import utils.mood as mood_module
+        if mood_type not in mood_module.MOOD_TYPES:
+            flash('无效的心情类型', 'danger')
+            return redirect(url_for('new_entry'))
+
+        # 验证心情备注长度
+        if len(mood_note) > 200:
+            flash('心情备注长度不能超过200个字符', 'danger')
+            return redirect(url_for('new_entry'))
+
         # 处理模板
         if template_id:
             try:
-                import utils.templates as template_module
                 content = template_module.render_template(template_id, date_str)
             except Exception as e:
                 logger.error(f"模板渲染失败: {e}")
@@ -488,6 +506,17 @@ def edit_entry(date_str):
             datetime.strptime(new_date, DATE_FORMAT)
         except ValueError:
             flash('日期格式错误，请使用 YYYY-MM-DD 格式', 'danger')
+            return redirect(url_for('edit_entry', date_str=date_str))
+
+        # 验证心情类型
+        import utils.mood as mood_module
+        if mood_type not in mood_module.MOOD_TYPES:
+            flash('无效的心情类型', 'danger')
+            return redirect(url_for('edit_entry', date_str=date_str))
+
+        # 验证心情备注长度
+        if len(new_mood_note) > 200:
+            flash('心情备注长度不能超过200个字符', 'danger')
             return redirect(url_for('edit_entry', date_str=date_str))
 
         # 如果日期改变，需要处理文件重命名
