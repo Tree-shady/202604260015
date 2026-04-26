@@ -1,0 +1,23 @@
+{
+  "theme": "dark",
+  "date_format": "%Y-%m-%d",
+  "backup_enabled": true,
+  "backup_interval": 7,
+  "auto_save": true,
+  "auto_save_interval": 30,
+  "editor_font_size": 12,
+  "terminal_colors": {
+    "primary": "GREEN",
+    "secondary": "CYAN",
+    "accent": "YELLOW",
+    "text": "WHITE",
+    "muted": "LIGHTBLACK_EX",
+    "error": "RED",
+    "success": "GREEN",
+    "info": "BLUE"
+  },
+  "notifications": {
+    "enabled": true,
+    "level": "info"
+  }
+}

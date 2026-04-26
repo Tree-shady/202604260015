@@ -1,3 +1,9 @@
+"""
+备份管理模块
+
+提供日记备份、恢复和管理功能
+"""
+
 import shutil
 from datetime import datetime
 from pathlib import Path

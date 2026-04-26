@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="bi bi-gear"></i> 系统设置</h2>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <!-- 主题设置 -->
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-palette text-primary"></i> 主题设置</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="theme" id="theme-light" value="light" {% if config.theme == 'light' %}checked{% endif %}>
+                                <label class="form-check-label" for="theme-light">
+                                    浅色主题
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="theme" id="theme-dark" value="dark" {% if config.theme == 'dark' %}checked{% endif %}>
+                                <label class="form-check-label" for="theme-dark">
+                                    深色主题
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 备份设置 -->
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-shield-check text-primary"></i> 备份设置</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="backup_enabled" id="backup-enabled" {% if config.backup_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="backup-enabled">
+                                    启用自动备份
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 编辑设置 -->
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-pencil text-primary"></i> 编辑设置</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="auto_save" id="auto-save" {% if config.auto_save %}checked{% endif %}>
+                                <label class="form-check-label" for="auto-save">
+                                    启用自动保存
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 通知设置 -->
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-bell text-primary"></i> 通知设置</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="notifications_enabled" id="notifications-enabled" {% if config.notifications.enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="notifications-enabled">
+                                    启用通知
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> 保存设置
+                            </button>
+                            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> 返回首页
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

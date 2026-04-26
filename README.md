@@ -16,6 +16,8 @@
 - 🏷️ 标签系统（支持按标签分类）
 - 🔄 备份管理（列出、恢复、删除备份）
 - 📝 日志记录（记录操作和错误）
+- 🔔 通知功能（操作反馈和提醒）
+- ⚙️ 设置管理（应用配置和个性化选项）
 - 🖥️ PyQt 图形化界面
 - 🌐 Flask Web 界面（Bootstrap 响应式设计）
 
@@ -39,6 +41,13 @@
 pip install -r requirements.txt
 ```
 
+### 依赖项说明
+
+- **Flask==2.0.1** - Web 应用框架
+- **PyQt6==6.1.0** - 图形化界面库
+- **markdown==3.3.4** - Markdown 渲染
+- **colorama==0.4.4** - 终端彩色输出
+
 ## 运行方式
 
 ### 1. 主程序（支持多种模式）
@@ -56,6 +65,17 @@ python app.py
 ```
 然后在浏览器中访问：http://127.0.0.1:5000
 
+#### Web 界面功能
+
+- **首页** - 显示最新日记和标签云
+- **写日记** - 创建新日记，支持 Markdown 格式和标签
+- **查看日记** - 阅读日记内容，支持 Markdown 渲染
+- **编辑日记** - 修改已有日记内容和标签
+- **搜索日记** - 按关键词搜索日记，显示匹配结果
+- **标签浏览** - 按标签分类浏览日记
+- **统计页面** - 查看日记统计数据和标签使用频率
+- **设置页面** - 管理应用配置和个性化选项
+
 ## 目录结构
 
 ```
@@ -69,18 +89,26 @@ python app.py
 │   ├── backup.py    # 备份相关功能
 │   ├── search.py    # 搜索功能
 │   ├── stats.py     # 统计功能
-│   └── logger.py    # 日志记录
+│   ├── logger.py    # 日志记录
+│   ├── notification.py # 通知功能
+│   ├── settings.py  # 设置管理
+│   └── gui.py       # GUI 相关功能
 ├── templates/       # Web 模板文件
 │   ├── base.html    # 基础模板
 │   ├── index.html   # 首页
 │   ├── new.html     # 新建日记
 │   ├── view.html    # 查看日记
 │   ├── edit.html    # 编辑日记
-│   └── tag.html     # 标签页面
+│   ├── tag.html     # 标签页面
+│   ├── search.html  # 搜索结果页面
+│   ├── settings.html # 设置页面
+│   └── stats.html   # 统计页面
 ├── entries/         # 日记存放目录
 ├── logs/            # 日志目录
 ├── tags.json        # 标签索引文件
+├── config.json      # 配置文件
 ├── requirements.txt # 依赖项列表
+├── LICENSE          # 许可证文件
 └── README.md
 ```
 

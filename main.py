@@ -11,9 +11,20 @@ from utils.storage import ensure_dir, get_today_str, get_file_path, get_tags, sa
 from utils.backup import backup_entries as backup_entries_util, list_backups as list_backups_util, restore_backup as restore_backup_util, delete_backup as delete_backup_util
 from utils.search import search_entries as search_entries_util
 from utils.stats import get_diary_stats, get_tag_stats, parse_relative_date, export_diary, export_all_diaries
+from utils.notification import show_notification
+from utils.settings import show_settings
 
 init(autoreset=True)
 
+# 颜色配置（与Web版保持一致）
+PRIMARY_COLOR = Fore.GREEN      # #10b981
+SECONDARY_COLOR = Fore.CYAN      # #64748b
+ACCENT_COLOR = Fore.YELLOW       # #f59e0b
+TEXT_COLOR = Fore.WHITE          # #1e293b
+MUTED_COLOR = Fore.LIGHTBLACK_EX # #64748b
+ERROR_COLOR = Fore.RED           # #ef4444
+SUCCESS_COLOR = Fore.GREEN       # #10b981
+INFO_COLOR = Fore.BLUE           # #3b82f6
 
 
 def write_entry(content, date_str=None, tags_str=None):
@@ -32,9 +43,9 @@ def write_entry(content, date_str=None, tags_str=None):
     full_content += content
 
     if file_path.exists():
-        confirm = input(f"{Fore.YELLOW}{date_str} 已有日记，是否覆盖？(y/n): ")
+        confirm = input(f"{ACCENT_COLOR}{date_str} 已有日记，是否覆盖？(y/n): ")
         if confirm.lower() != 'y':
-            print(f"{Fore.RED}已取消写入")
+            print(f"{ERROR_COLOR}已取消写入")
             return
 
     with open(file_path, 'w', encoding='utf-8') as f:
@@ -45,7 +56,7 @@ def write_entry(content, date_str=None, tags_str=None):
         tags = [tag.strip() for tag in tags_str.split(',')]
         update_tags_index(date_str, tags)
     
-    print(f"{Fore.GREEN}日记已保存至 {file_path}")
+    print(f"{SUCCESS_COLOR}日记已保存至 {file_path}")
 
 def read_entry(date_str):
     """读取指定日期的日记"""
@@ -54,72 +65,90 @@ def read_entry(date_str):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        print(f"\n{Fore.CYAN}{'=' * 40}")
-        print(f"{Fore.CYAN}        {date_str} 的日记")
-        print(f"{Fore.CYAN}{'=' * 40}")
+        print(f"\n{SECONDARY_COLOR}{'=' * 40}")
+        print(f"{SECONDARY_COLOR}        {date_str} 的日记")
+        print(f"{SECONDARY_COLOR}{'=' * 40}")
 
         lines = content.split('\n')
         for line in lines:
             if line.startswith('# '):
-                print(f"{Fore.GREEN}{Style.BRIGHT}{line[2:]}")
+                print(f"{PRIMARY_COLOR}{Style.BRIGHT}{line[2:]}")
             elif line.startswith('## '):
-                print(f"{Fore.GREEN}{line[3:]}")
+                print(f"{PRIMARY_COLOR}{line[3:]}")
             elif line.startswith('### '):
-                print(f"{Fore.CYAN}{line[4:]}")
+                print(f"{SECONDARY_COLOR}{line[4:]}")
             elif line.startswith('**') and line.endswith('**'):
-                print(f"{Fore.YELLOW}{Style.BRIGHT}{line[2:-2]}")
+                print(f"{ACCENT_COLOR}{Style.BRIGHT}{line[2:-2]}")
             elif line.startswith('*') and line.endswith('*'):
-                print(f"{Fore.MAGENTA}{line[1:-1]}")
+                print(f"{INFO_COLOR}{line[1:-1]}")
             elif line.startswith('- ') or line.startswith('* '):
-                print(f"{Fore.WHITE}  {Fore.YELLOW}•{Fore.WHITE} {line[2:]}")
+                print(f"{TEXT_COLOR}  {ACCENT_COLOR}•{TEXT_COLOR} {line[2:]}")
             elif line.startswith('> '):
-                print(f"{Fore.BLUE}  │ {line[2:]}")
+                print(f"{INFO_COLOR}  │ {line[2:]}")
             elif line.strip():
-                print(f"{Fore.WHITE}{line}")
+                print(f"{TEXT_COLOR}{line}")
             else:
                 print()
     except FileNotFoundError:
-        print(f"{Fore.RED}未找到 {date_str} 的日记")
+        print(f"{ERROR_COLOR}未找到 {date_str} 的日记")
 
 def list_entries():
     """列出所有日记的日期"""
     entries = sorted(ENTRIES_DIR.glob("*.txt"))
     if not entries:
-        print(f"{Fore.YELLOW}暂无日记")
+        print(f"{ACCENT_COLOR}暂无日记")
         return
 
-    print(f"\n{Fore.GREEN}已有日记：")
+    print(f"\n{PRIMARY_COLOR}已有日记：")
     for idx, entry in enumerate(entries, 1):
         date_str = entry.stem
         size = entry.stat().st_size
-        print(f"  {Fore.CYAN}{idx}.{Fore.WHITE} {date_str} {Style.DIM}({size} 字节){Style.RESET_ALL}")
+        print(f"  {SECONDARY_COLOR}{idx}.{TEXT_COLOR} {date_str} {Style.DIM}({size} 字节){Style.RESET_ALL}")
 
 def search_entries(keyword):
     """在日记内容中搜索关键词"""
     results = search_entries_util(keyword)
     if results:
-        print(f"\n{Fore.GREEN}找到包含 '{keyword}' 的日记：")
+        print(f"\n{PRIMARY_COLOR}找到包含 '{keyword}' 的日记：")
         for date_str, matches in results:
-            print(f"\n  {Fore.CYAN}•{Fore.WHITE} {date_str}")
+            print(f"\n  {SECONDARY_COLOR}•{TEXT_COLOR} {date_str}")
             for line_num, context in matches:
-                print(f"    {Fore.YELLOW}第 {line_num} 行:")
+                print(f"    {ACCENT_COLOR}第 {line_num} 行:")
                 for i, line in enumerate(context):
                     if i == 1:  # 匹配的行
-                        print(f"      {Fore.GREEN}{line.strip()}")
+                        print(f"      {PRIMARY_COLOR}{line.strip()}")
                     else:  # 上下文行
-                        print(f"      {Fore.WHITE}{line.strip()}")
+                        print(f"      {TEXT_COLOR}{line.strip()}")
     else:
-        print(f"{Fore.YELLOW}未找到包含 '{keyword}' 的日记")
+        print(f"{ACCENT_COLOR}未找到包含 '{keyword}' 的日记")
+
+def validate_date_str(date_str):
+    """验证日期字符串"""
+    import re
+    # 验证日期格式：YYYY-MM-DD
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+        return False
+    # 验证日期是否有效
+    try:
+        datetime.strptime(date_str, DATE_FORMAT)
+        return True
+    except ValueError:
+        return False
 
 def delete_entry(date_str):
     """删除指定日期的日记"""
+    # 验证日期字符串
+    if not validate_date_str(date_str):
+        print(f"{ERROR_COLOR}无效的日期格式")
+        return
+        
     file_path = get_file_path(date_str)
 
     if not file_path.exists():
-        print(f"{Fore.RED}未找到 {date_str} 的日记")
+        print(f"{ERROR_COLOR}未找到 {date_str} 的日记")
         return
 
-    confirm = input(f"{Fore.RED}确认删除 {date_str} 的日记？(y/n): ")
+    confirm = input(f"{ERROR_COLOR}确认删除 {date_str} 的日记？(y/n): ")
     if confirm.lower() == 'y':
         file_path.unlink()
         
@@ -132,16 +161,21 @@ def delete_entry(date_str):
                     del tag_data[tag]
         save_tags(tag_data)
         
-        print(f"{Fore.GREEN}已删除 {date_str} 的日记")
+        print(f"{SUCCESS_COLOR}已删除 {date_str} 的日记")
     else:
-        print(f"{Fore.YELLOW}已取消删除")
+        print(f"{ACCENT_COLOR}已取消删除")
 
 def edit_entry(date_str):
     """编辑已存在的日记"""
+    # 验证日期字符串
+    if not validate_date_str(date_str):
+        print(f"{ERROR_COLOR}无效的日期格式")
+        return
+        
     file_path = get_file_path(date_str)
 
     if not file_path.exists():
-        print(f"{Fore.RED}未找到 {date_str} 的日记")
+        print(f"{ERROR_COLOR}未找到 {date_str} 的日记")
         return
 
     # 读取现有内容
@@ -164,14 +198,14 @@ def edit_entry(date_str):
     existing_content = '\n'.join(lines)
 
     # 显示现有内容
-    print(f"\n{Fore.CYAN}【编辑日记 - {date_str}】")
-    print(f"{Fore.WHITE}现有标签: {tags_str or '无'}")
-    print(f"{Fore.WHITE}现有内容:")
-    print(f"{Fore.WHITE}{existing_content}")
-    print(f"{Fore.WHITE}（输入新内容，结束后输入 .end 并回车）")
+    print(f"\n{SECONDARY_COLOR}【编辑日记 - {date_str}】")
+    print(f"{TEXT_COLOR}现有标签: {tags_str or '无'}")
+    print(f"{TEXT_COLOR}现有内容:")
+    print(f"{TEXT_COLOR}{existing_content}")
+    print(f"{TEXT_COLOR}（输入新内容，结束后输入 .end 并回车）")
 
     # 输入新标签
-    new_tags_str = input(f"{Fore.WHITE}请输入新标签（用逗号分隔多个标签，回车保持原有标签）: ").strip()
+    new_tags_str = input(f"{TEXT_COLOR}请输入新标签（用逗号分隔多个标签，回车保持原有标签）: ").strip()
     if not new_tags_str:
         new_tags_str = tags_str
 
@@ -201,84 +235,84 @@ def edit_entry(date_str):
             tags = [tag.strip() for tag in new_tags_str.split(',')]
             update_tags_index(date_str, tags)
 
-        print(f"{Fore.GREEN}日记已更新")
+        print(f"{SUCCESS_COLOR}日记已更新")
     else:
-        print(f"{Fore.RED}内容为空，未更新")
+        print(f"{ERROR_COLOR}内容为空，未更新")
 
 def show_tags():
     """显示所有标签"""
     tag_data = get_tags()
     if not tag_data:
-        print(f"{Fore.YELLOW}暂无标签")
+        print(f"{ACCENT_COLOR}暂无标签")
         return
     
-    print(f"\n{Fore.GREEN}所有标签：")
+    print(f"\n{PRIMARY_COLOR}所有标签：")
     for tag, dates in tag_data.items():
-        print(f"  {Fore.CYAN}{tag}{Fore.WHITE} ({len(dates)} 篇日记)")
+        print(f"  {SECONDARY_COLOR}{tag}{TEXT_COLOR} ({len(dates)} 篇日记)")
 
 def backup_entries():
     """备份 entries 文件夹"""
     backup_dir = backup_entries_util()
     if backup_dir:
-        print(f"{Fore.GREEN}日记已备份至 {backup_dir}")
+        print(f"{SUCCESS_COLOR}日记已备份至 {backup_dir}")
 
 def list_backups():
     """列出所有备份"""
     backups = list_backups_util()
     if not backups:
-        print(f"{Fore.YELLOW}暂无备份")
+        print(f"{ACCENT_COLOR}暂无备份")
         return
     
-    print(f"\n{Fore.GREEN}所有备份：")
+    print(f"\n{PRIMARY_COLOR}所有备份：")
     for idx, (timestamp, backup_dir) in enumerate(backups, 1):
         # 计算备份大小
         size = sum(f.stat().st_size for f in backup_dir.rglob("*"))
-        print(f"  {Fore.CYAN}{idx}.{Fore.WHITE} {timestamp.strftime('%Y-%m-%d %H:%M:%S')} ({size} 字节) - {backup_dir.name}")
+        print(f"  {SECONDARY_COLOR}{idx}.{TEXT_COLOR} {timestamp.strftime('%Y-%m-%d %H:%M:%S')} ({size} 字节) - {backup_dir.name}")
     
     return backups
 
 def restore_backup(backup_dir):
     """恢复备份"""
     if not backup_dir.exists():
-        print(f"{Fore.RED}备份目录不存在")
+        print(f"{ERROR_COLOR}备份目录不存在")
         return
     
     # 确认恢复
-    confirm = input(f"{Fore.RED}确认恢复备份 {backup_dir.name} 吗？这将覆盖当前的日记！(y/n): ")
+    confirm = input(f"{ERROR_COLOR}确认恢复备份 {backup_dir.name} 吗？这将覆盖当前的日记！(y/n): ")
     if confirm.lower() != 'y':
-        print(f"{Fore.YELLOW}已取消恢复")
+        print(f"{ACCENT_COLOR}已取消恢复")
         return
     
     success = restore_backup_util(backup_dir)
     if success:
-        print(f"{Fore.GREEN}备份已恢复")
+        print(f"{SUCCESS_COLOR}备份已恢复")
 
 def delete_backup(backup_dir):
     """删除备份"""
     if not backup_dir.exists():
-        print(f"{Fore.RED}备份目录不存在")
+        print(f"{ERROR_COLOR}备份目录不存在")
         return
     
-    confirm = input(f"{Fore.RED}确认删除备份 {backup_dir.name} 吗？(y/n): ")
+    confirm = input(f"{ERROR_COLOR}确认删除备份 {backup_dir.name} 吗？(y/n): ")
     if confirm.lower() == 'y':
         success = delete_backup_util(backup_dir)
         if success:
-            print(f"{Fore.GREEN}备份已删除")
+            print(f"{SUCCESS_COLOR}备份已删除")
     else:
-        print(f"{Fore.YELLOW}已取消删除")
+        print(f"{ACCENT_COLOR}已取消删除")
 
 def backup_management():
     """备份管理"""
     while True:
-        print(f"\n{Fore.CYAN}{'=' * 40}")
-        print(f"{Fore.GREEN}{Style.BRIGHT}        备份管理")
-        print(f"{Fore.CYAN}{'=' * 40}")
-        print(f"{Fore.WHITE}1. 列出所有备份")
-        print(f"{Fore.WHITE}2. 恢复备份")
-        print(f"{Fore.WHITE}3. 删除备份")
-        print(f"{Fore.WHITE}4. 手动创建备份")
-        print(f"{Fore.RED}0. 返回主菜单")
-        print(f"{Fore.CYAN}{'=' * 40}")
+        print(f"\n{SECONDARY_COLOR}{'=' * 40}")
+        print(f"{PRIMARY_COLOR}{Style.BRIGHT}        备份管理")
+        print(f"{SECONDARY_COLOR}{'=' * 40}")
+        print(f"{TEXT_COLOR}1. 列出所有备份")
+        print(f"{TEXT_COLOR}2. 恢复备份")
+        print(f"{TEXT_COLOR}3. 删除备份")
+        print(f"{TEXT_COLOR}4. 手动创建备份")
+        print(f"{ERROR_COLOR}0. 返回主菜单")
+        print(f"{SECONDARY_COLOR}{'=' * 40}")
         
         choice = input("请选择操作: ").strip()
         
@@ -289,25 +323,25 @@ def backup_management():
             backups = list_backups()
             if backups:
                 try:
-                    idx = int(input(f"{Fore.WHITE}请输入要恢复的备份编号: ").strip()) - 1
+                    idx = int(input(f"{TEXT_COLOR}请输入要恢复的备份编号: ").strip()) - 1
                     if 0 <= idx < len(backups):
                         restore_backup(backups[idx][1])
                     else:
-                        print(f"{Fore.RED}无效的编号")
+                        print(f"{ERROR_COLOR}无效的编号")
                 except ValueError:
-                    print(f"{Fore.RED}请输入有效的数字")
+                    print(f"{ERROR_COLOR}请输入有效的数字")
         
         elif choice == '3':
             backups = list_backups()
             if backups:
                 try:
-                    idx = int(input(f"{Fore.WHITE}请输入要删除的备份编号: ").strip()) - 1
+                    idx = int(input(f"{TEXT_COLOR}请输入要删除的备份编号: ").strip()) - 1
                     if 0 <= idx < len(backups):
                         delete_backup(backups[idx][1])
                     else:
-                        print(f"{Fore.RED}无效的编号")
+                        print(f"{ERROR_COLOR}无效的编号")
                 except ValueError:
-                    print(f"{Fore.RED}请输入有效的数字")
+                    print(f"{ERROR_COLOR}请输入有效的数字")
         
         elif choice == '4':
             backup_entries()
@@ -316,29 +350,29 @@ def backup_management():
             break
         
         else:
-            print(f"{Fore.RED}无效选择，请重新输入")
+            print(f"{ERROR_COLOR}无效选择，请重新输入")
 
 def show_stats():
     """显示统计信息"""
     stats = get_diary_stats()
     
-    print(f"\n{Fore.CYAN}{'=' * 40}")
-    print(f"{Fore.GREEN}{Style.BRIGHT}        日记统计")
-    print(f"{Fore.CYAN}{'=' * 40}")
-    print(f"{Fore.WHITE}日记总数: {Fore.CYAN}{stats['total_diaries']}")
-    print(f"{Fore.WHITE}总字数: {Fore.CYAN}{stats['total_words']}")
-    print(f"{Fore.WHITE}总字符数: {Fore.CYAN}{stats['total_chars']}")
+    print(f"\n{SECONDARY_COLOR}{'=' * 40}")
+    print(f"{PRIMARY_COLOR}{Style.BRIGHT}        日记统计")
+    print(f"{SECONDARY_COLOR}{'=' * 40}")
+    print(f"{TEXT_COLOR}日记总数: {SECONDARY_COLOR}{stats['total_diaries']}")
+    print(f"{TEXT_COLOR}总字数: {SECONDARY_COLOR}{stats['total_words']}")
+    print(f"{TEXT_COLOR}总字符数: {SECONDARY_COLOR}{stats['total_chars']}")
     
     # 标签统计
     tag_stats = get_tag_stats()
     if tag_stats:
-        print(f"\n{Fore.GREEN}标签使用频率：")
+        print(f"\n{PRIMARY_COLOR}标签使用频率：")
         for i, tag_stat in enumerate(tag_stats[:10], 1):
-            print(f"  {Fore.CYAN}{i}.{Fore.WHITE} {tag_stat['tag']} - {tag_stat['count']} 篇")
+            print(f"  {SECONDARY_COLOR}{i}.{TEXT_COLOR} {tag_stat['tag']} - {tag_stat['count']} 篇")
 
 def date_input_with_relative(prompt="请输入日期 (YYYY-MM-DD)"):
     """支持相对日期的日期输入"""
-    date_str = input(f"{Fore.WHITE}{prompt} (或输入今天/昨天/3天前等): ").strip()
+    date_str = input(f"{TEXT_COLOR}{prompt} (或输入今天/昨天/3天前等): ").strip()
     
     # 尝试解析相对日期
     relative_date = parse_relative_date(date_str)
@@ -356,45 +390,46 @@ def export_diary_single():
     """导出单篇日记"""
     date_str = date_input_with_relative("请输入要导出的日记日期")
     if not date_str:
-        print(f"{Fore.RED}日期格式错误或日记不存在")
+        print(f"{ERROR_COLOR}日期格式错误或日记不存在")
         return
     
     file_path = ENTRIES_DIR / f"{date_str}.txt"
     if not file_path.exists():
-        print(f"{Fore.RED}未找到 {date_str} 的日记")
+        print(f"{ERROR_COLOR}未找到 {date_str} 的日记")
         return
     
     export_path = export_diary(date_str)
     if export_path:
-        print(f"{Fore.GREEN}日记已导出至 {export_path}")
+        print(f"{SUCCESS_COLOR}日记已导出至 {export_path}")
 
 def export_all():
     """导出所有日记"""
-    print(f"\n{Fore.WHITE}正在导出所有日记...")
+    print(f"\n{TEXT_COLOR}正在导出所有日记...")
     exported, export_path = export_all_diaries()
     if exported:
-        print(f"{Fore.GREEN}已导出 {len(exported)} 篇日记至 {export_path}")
+        print(f"{SUCCESS_COLOR}已导出 {len(exported)} 篇日记至 {export_path}")
     else:
-        print(f"{Fore.YELLOW}暂无日记可导出")
+        print(f"{ACCENT_COLOR}暂无日记可导出")
 
 def show_menu():
     """显示菜单"""
-    print(f"\n{Fore.CYAN}{'=' * 40}")
-    print(f"{Fore.GREEN}{Style.BRIGHT}        个人日记本")
-    print(f"{Fore.CYAN}{'=' * 40}")
-    print(f"{Fore.WHITE}1. 写日记（今天）")
-    print(f"{Fore.WHITE}2. 写日记（指定日期）")
-    print(f"{Fore.WHITE}3. 读日记")
-    print(f"{Fore.WHITE}4. 列出所有日记")
-    print(f"{Fore.WHITE}5. 搜索日记")
-    print(f"{Fore.WHITE}6. 删除日记")
-    print(f"{Fore.WHITE}7. 编辑日记")
-    print(f"{Fore.WHITE}8. 显示标签")
-    print(f"{Fore.WHITE}9. 备份管理")
-    print(f"{Fore.WHITE}A. 日记统计")
-    print(f"{Fore.WHITE}B. 导出日记")
-    print(f"{Fore.RED}0. 退出")
-    print(f"{Fore.CYAN}{'=' * 40}")
+    print(f"\n{SECONDARY_COLOR}{'=' * 40}")
+    print(f"{PRIMARY_COLOR}{Style.BRIGHT}        个人日记本")
+    print(f"{SECONDARY_COLOR}{'=' * 40}")
+    print(f"{TEXT_COLOR}1. 写日记（今天）")
+    print(f"{TEXT_COLOR}2. 写日记（指定日期）")
+    print(f"{TEXT_COLOR}3. 读日记")
+    print(f"{TEXT_COLOR}4. 列出所有日记")
+    print(f"{TEXT_COLOR}5. 搜索日记")
+    print(f"{TEXT_COLOR}6. 删除日记")
+    print(f"{TEXT_COLOR}7. 编辑日记")
+    print(f"{TEXT_COLOR}8. 显示标签")
+    print(f"{TEXT_COLOR}9. 备份管理")
+    print(f"{TEXT_COLOR}A. 日记统计")
+    print(f"{TEXT_COLOR}B. 导出日记")
+    print(f"{TEXT_COLOR}C. 系统设置")
+    print(f"{ERROR_COLOR}0. 退出")
+    print(f"{SECONDARY_COLOR}{'=' * 40}")
 
 def terminal_mode():
     """终端模式"""
@@ -405,10 +440,10 @@ def terminal_mode():
         choice = input("请选择操作: ").strip()
         
         if choice == '1':
-            print(f"\n{Fore.GREEN}【写日记 - 今天】")
-            tags_str = input(f"{Fore.WHITE}请输入标签（用逗号分隔多个标签，回车跳过）: ").strip()
-            print(f"{Fore.WHITE}（输入完成后，在新的一行输入 .end 并回车结束）")
-            print(f"{Fore.WHITE}（支持 Markdown 格式）")
+            print(f"\n{PRIMARY_COLOR}【写日记 - 今天】")
+            tags_str = input(f"{TEXT_COLOR}请输入标签（用逗号分隔多个标签，回车跳过）: ").strip()
+            print(f"{TEXT_COLOR}（输入完成后，在新的一行输入 .end 并回车结束）")
+            print(f"{TEXT_COLOR}（支持 Markdown 格式）")
             lines = []
             while True:
                 line = input()
@@ -419,18 +454,18 @@ def terminal_mode():
             if content.strip():
                 write_entry(content, tags_str=tags_str)
             else:
-                print(f"{Fore.RED}日记内容为空，未保存")
+                print(f"{ERROR_COLOR}日记内容为空，未保存")
         
         elif choice == '2':
-            date_str = input(f"{Fore.WHITE}请输入日期 (格式 YYYY-MM-DD): ").strip()
+            date_str = input(f"{TEXT_COLOR}请输入日期 (格式 YYYY-MM-DD): ").strip()
             try:
                 datetime.strptime(date_str, DATE_FORMAT)
             except ValueError:
-                print(f"{Fore.RED}日期格式错误，请使用 YYYY-MM-DD 格式")
+                print(f"{ERROR_COLOR}日期格式错误，请使用 YYYY-MM-DD 格式")
                 continue
             
-            tags_str = input(f"{Fore.WHITE}请输入标签（用逗号分隔多个标签，回车跳过）: ").strip()
-            print(f"{Fore.WHITE}请输入日记内容（输入 .end 结束）：")
+            tags_str = input(f"{TEXT_COLOR}请输入标签（用逗号分隔多个标签，回车跳过）: ").strip()
+            print(f"{TEXT_COLOR}请输入日记内容（输入 .end 结束）：")
             lines = []
             while True:
                 line = input()
@@ -441,28 +476,28 @@ def terminal_mode():
             if content.strip():
                 write_entry(content, date_str, tags_str=tags_str)
             else:
-                print(f"{Fore.RED}日记内容为空，未保存")
+                print(f"{ERROR_COLOR}日记内容为空，未保存")
 
         elif choice == '3':
-            date_str = input(f"{Fore.WHITE}请输入要读取的日期 (YYYY-MM-DD): ").strip()
+            date_str = input(f"{TEXT_COLOR}请输入要读取的日期 (YYYY-MM-DD): ").strip()
             read_entry(date_str)
         
         elif choice == '4':
             list_entries()
 
         elif choice == '5':
-            keyword = input(f"{Fore.WHITE}请输入搜索关键词: ").strip()
+            keyword = input(f"{TEXT_COLOR}请输入搜索关键词: ").strip()
             if keyword:
                 search_entries(keyword)
             else:
-                print(f"{Fore.RED}关键词不能为空")
+                print(f"{ERROR_COLOR}关键词不能为空")
 
         elif choice == '6':
-            date_str = input(f"{Fore.WHITE}请输入要删除的日期 (YYYY-MM-DD): ").strip()
+            date_str = input(f"{TEXT_COLOR}请输入要删除的日期 (YYYY-MM-DD): ").strip()
             delete_entry(date_str)
         
         elif choice == '7':
-            date_str = input(f"{Fore.WHITE}请输入要编辑的日期 (YYYY-MM-DD): ").strip()
+            date_str = input(f"{TEXT_COLOR}请输入要编辑的日期 (YYYY-MM-DD): ").strip()
             edit_entry(date_str)
         
         elif choice == '8':
@@ -475,13 +510,13 @@ def terminal_mode():
             show_stats()
         
         elif choice.upper() == 'B':
-            print(f"\n{Fore.CYAN}{'=' * 40}")
-            print(f"{Fore.GREEN}{Style.BRIGHT}        导出日记")
-            print(f"{Fore.CYAN}{'=' * 40}")
-            print(f"{Fore.WHITE}1. 导出单篇日记")
-            print(f"{Fore.WHITE}2. 导出所有日记")
-            print(f"{Fore.RED}0. 返回")
-            print(f"{Fore.CYAN}{'=' * 40}")
+            print(f"\n{SECONDARY_COLOR}{'=' * 40}")
+            print(f"{PRIMARY_COLOR}{Style.BRIGHT}        导出日记")
+            print(f"{SECONDARY_COLOR}{'=' * 40}")
+            print(f"{TEXT_COLOR}1. 导出单篇日记")
+            print(f"{TEXT_COLOR}2. 导出所有日记")
+            print(f"{ERROR_COLOR}0. 返回")
+            print(f"{SECONDARY_COLOR}{'=' * 40}")
             
             export_choice = input("请选择: ").strip()
             if export_choice == '1':
@@ -489,245 +524,30 @@ def terminal_mode():
             elif export_choice == '2':
                 export_all()
         
+        elif choice.upper() == 'C':
+            show_settings()
+        
         elif choice == '0':
             backup_entries()
-            print(f"{Fore.GREEN}再见！")
+            print(f"{SUCCESS_COLOR}再见！")
             break
         
         else:
-            print(f"{Fore.RED}无效选择，请重新输入")
+            print(f"{ERROR_COLOR}无效选择，请重新输入")
 
-def pyqt_mode():
-    """PyQt 图形化模式"""
-    try:
-        from PyQt6.QtWidgets import (
-            QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-            QPushButton, QTextEdit, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-            QComboBox, QInputDialog, QMessageBox, QSplitter
-        )
-        from PyQt6.QtCore import Qt
-    except ImportError:
-        print(f"{Fore.RED}PyQt6 未安装，请运行 'pip install PyQt6' 后重试")
-        return
-    
-    class DiaryApp(QMainWindow):
-        def __init__(self):
-            super().__init__()
-            self.setWindowTitle("个人日记本")
-            self.setGeometry(100, 100, 800, 600)
-            
-            # 确保目录存在
-            ensure_dir()
-            
-            # 创建主布局
-            central_widget = QWidget()
-            self.setCentralWidget(central_widget)
-            
-            main_layout = QVBoxLayout(central_widget)
-            
-            # 创建顶部工具栏
-            toolbar = QHBoxLayout()
-            
-            self.btn_new = QPushButton("新建日记")
-            self.btn_new.clicked.connect(self.new_entry)
-            toolbar.addWidget(self.btn_new)
-            
-            self.btn_read = QPushButton("读取日记")
-            self.btn_read.clicked.connect(self.read_entry)
-            toolbar.addWidget(self.btn_read)
-            
-            self.btn_delete = QPushButton("删除日记")
-            self.btn_delete.clicked.connect(self.delete_entry)
-            toolbar.addWidget(self.btn_delete)
-            
-            self.btn_refresh = QPushButton("刷新列表")
-            self.btn_refresh.clicked.connect(self.refresh_entries)
-            toolbar.addWidget(self.btn_refresh)
-            
-            main_layout.addLayout(toolbar)
-            
-            # 创建分割器
-            splitter = QSplitter(Qt.Orientation.Horizontal)
-            
-            # 左侧日记列表
-            self.entries_list = QListWidget()
-            self.entries_list.itemClicked.connect(self.on_entry_clicked)
-            splitter.addWidget(self.entries_list)
-            
-            # 右侧内容区域
-            content_widget = QWidget()
-            content_layout = QVBoxLayout(content_widget)
-            
-            # 日期选择
-            date_layout = QHBoxLayout()
-            date_layout.addWidget(QLabel("日期:"))
-            self.date_edit = QLineEdit()
-            self.date_edit.setText(datetime.now().strftime(DATE_FORMAT))
-            date_layout.addWidget(self.date_edit)
-            content_layout.addLayout(date_layout)
-            
-            # 标签输入
-            tags_layout = QHBoxLayout()
-            tags_layout.addWidget(QLabel("标签:"))
-            self.tags_edit = QLineEdit()
-            self.tags_edit.setPlaceholderText("用逗号分隔多个标签")
-            tags_layout.addWidget(self.tags_edit)
-            content_layout.addLayout(tags_layout)
-            
-            # 内容编辑
-            content_layout.addWidget(QLabel("内容:"))
-            self.content_edit = QTextEdit()
-            content_layout.addWidget(self.content_edit)
-            
-            # 保存按钮
-            self.btn_save = QPushButton("保存")
-            self.btn_save.clicked.connect(self.save_entry)
-            content_layout.addWidget(self.btn_save)
-            
-            splitter.addWidget(content_widget)
-            splitter.setSizes([200, 600])
-            main_layout.addWidget(splitter)
-            
-            # 刷新日记列表
-            self.refresh_entries()
-        
-        def refresh_entries(self):
-            """刷新日记列表"""
-            self.entries_list.clear()
-            entries = sorted(ENTRIES_DIR.glob("*.txt"), reverse=True)
-            for entry in entries:
-                date_str = entry.stem
-                size = entry.stat().st_size
-                item = QListWidgetItem(f"{date_str} ({size} 字节)")
-                item.setData(Qt.ItemDataRole.UserRole, date_str)
-                self.entries_list.addItem(item)
-        
-        def new_entry(self):
-            """新建日记"""
-            self.date_edit.setText(datetime.now().strftime(DATE_FORMAT))
-            self.tags_edit.clear()
-            self.content_edit.clear()
-        
-        def on_entry_clicked(self, item):
-            """点击日记项"""
-            date_str = item.data(Qt.ItemDataRole.UserRole)
-            self.load_entry(date_str)
-        
-        def load_entry(self, date_str):
-            """加载日记内容"""
-            file_path = get_file_path(date_str)
-            if file_path.exists():
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                # 提取标签（如果有）
-                lines = content.split('\n')
-                tags_line = ""
-                if lines and lines[0].startswith("Tags: "):
-                    tags_line = lines[0][6:]
-                    content = '\n'.join(lines[1:])
-                
-                self.date_edit.setText(date_str)
-                self.tags_edit.setText(tags_line)
-                self.content_edit.setPlainText(content)
-        
-        def save_entry(self):
-            """保存日记"""
-            date_str = self.date_edit.text().strip()
-            tags_str = self.tags_edit.text().strip()
-            content = self.content_edit.toPlainText().strip()
-            
-            if not date_str:
-                QMessageBox.warning(self, "警告", "请输入日期")
-                return
-            
-            if not content:
-                QMessageBox.warning(self, "警告", "日记内容不能为空")
-                return
-            
-            # 验证日期格式
-            try:
-                datetime.strptime(date_str, DATE_FORMAT)
-            except ValueError:
-                QMessageBox.warning(self, "警告", "日期格式错误，请使用 YYYY-MM-DD 格式")
-                return
-            
-            file_path = get_file_path(date_str)
-            
-            # 构建内容（包含标签）
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            full_content = f"[{timestamp}]\n"
-            if tags_str:
-                full_content += f"Tags: {tags_str}\n"
-            full_content += content
-            
-            # 保存文件
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(full_content)
-            
-            # 更新标签索引
-            if tags_str:
-                tags = [tag.strip() for tag in tags_str.split(',')]
-                update_tags_index(date_str, tags)
-            
-            QMessageBox.information(self, "成功", f"日记已保存至 {file_path}")
-            self.refresh_entries()
-        
-        def read_entry(self):
-            """读取指定日期的日记"""
-            date_str, ok = QInputDialog.getText(self, "读取日记", "请输入日期 (YYYY-MM-DD):")
-            if ok and date_str:
-                self.load_entry(date_str)
-        
-        def delete_entry(self):
-            """删除日记"""
-            selected_items = self.entries_list.selectedItems()
-            if not selected_items:
-                QMessageBox.warning(self, "警告", "请选择要删除的日记")
-                return
-            
-            item = selected_items[0]
-            date_str = item.data(Qt.ItemDataRole.UserRole)
-            
-            reply = QMessageBox.question(
-                self, "确认删除", f"确定要删除 {date_str} 的日记吗？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            
-            if reply == QMessageBox.StandardButton.Yes:
-                file_path = get_file_path(date_str)
-                if file_path.exists():
-                    file_path.unlink()
-                    
-                    # 更新标签索引
-                    tag_data = get_tags()
-                    for tag, dates in tag_data.items():
-                        if date_str in dates:
-                            dates.remove(date_str)
-                            if not dates:
-                                del tag_data[tag]
-                    save_tags(tag_data)
-                    
-                    QMessageBox.information(self, "成功", f"已删除 {date_str} 的日记")
-                    self.refresh_entries()
-                    self.new_entry()
-    
-    app = QApplication(sys.argv)
-    window = DiaryApp()
-    window.show()
-    sys.exit(app.exec())
+
 
 def main():
     """主函数"""
     ensure_dir()
     
-    print(f"\n{Fore.CYAN}{'=' * 40}")
-    print(f"{Fore.GREEN}{Style.BRIGHT}        个人日记本")
-    print(f"{Fore.CYAN}{'=' * 40}")
-    print(f"{Fore.WHITE}1. 终端模式")
-    print(f"{Fore.WHITE}2. PyQt 图形化模式")
-    print(f"{Fore.RED}0. 退出")
-    print(f"{Fore.CYAN}{'=' * 40}")
+    print(f"\n{SECONDARY_COLOR}{'=' * 40}")
+    print(f"{PRIMARY_COLOR}{Style.BRIGHT}        个人日记本")
+    print(f"{SECONDARY_COLOR}{'=' * 40}")
+    print(f"{TEXT_COLOR}1. 终端模式")
+    print(f"{TEXT_COLOR}2. PyQt 图形化模式")
+    print(f"{ERROR_COLOR}0. 退出")
+    print(f"{SECONDARY_COLOR}{'=' * 40}")
     
     choice = input("请选择运行模式: ").strip()
     
@@ -736,9 +556,9 @@ def main():
     elif choice == '2':
         pyqt_mode()
     elif choice == '0':
-        print(f"{Fore.GREEN}再见！")
+        print(f"{SUCCESS_COLOR}再见！")
     else:
-        print(f"{Fore.RED}无效选择，请重新运行程序")
+        print(f"{ERROR_COLOR}无效选择，请重新运行程序")
 
 if __name__ == "__main__":
     main()

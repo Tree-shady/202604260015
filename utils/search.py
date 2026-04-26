@@ -1,3 +1,9 @@
+"""
+搜索功能模块
+
+提供日记内容搜索功能，支持多关键词搜索和上下文显示
+"""
+
 from pathlib import Path
 from .config import ENTRIES_DIR
 

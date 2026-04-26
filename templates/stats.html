@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row">
+        <!-- 总统计卡片 -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="bi bi-bar-chart"></i> 总统计</h2>
+                </div>
+                <div class="card-body">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon primary">
+                                <i class="bi bi-journal-text"></i>
+                            </div>
+                            <div class="stat-value">{{ stats.total_entries }}</div>
+                            <div class="stat-label">日记总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon warning">
+                                <i class="bi bi-file-text"></i>
+                            </div>
+                            <div class="stat-value">{{ stats.total_words }}</div>
+                            <div class="stat-label">总字数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon info">
+                                <i class="bi bi-character"></i>
+                            </div>
+                            <div class="stat-value">{{ stats.total_chars }}</div>
+                            <div class="stat-label">总字符数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon primary">
+                                <i class="bi bi-tags"></i>
+                            </div>
+                            <div class="stat-value">{{ stats.total_tags }}</div>
+                            <div class="stat-label">标签数量</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 标签统计 -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="bi bi-tags"></i> 标签使用频率</h2>
+                </div>
+                <div class="card-body">
+                    {% if tag_stats %}
+                        <div class="list-group">
+                            {% for tag_stat in tag_stats[:10] %}
+                                <a href="{{ url_for('view_tag', tag=tag_stat.tag) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <span>{{ tag_stat.tag }}</span>
+                                    <span class="badge bg-primary text-white">{{ tag_stat.count }}</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-tags" style="font-size: 2rem; color: #ccc;"></i>
+                            <p class="text-muted mt-2">暂无标签</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 月度统计 -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="bi bi-calendar-month"></i> 月度日记数量</h2>
+                </div>
+                <div class="card-body">
+                    {% if monthly_stats %}
+                        <div class="list-group">
+                            {% for month in monthly_stats %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>{{ month.month }}</span>
+                                    <span class="badge bg-primary text-white">{{ month.count }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-calendar" style="font-size: 2rem; color: #ccc;"></i>
+                            <p class="text-muted mt-2">暂无数据</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

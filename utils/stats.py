@@ -1,3 +1,9 @@
+"""
+统计和导出模块
+
+提供日记统计信息和导出功能
+"""
+
 from pathlib import Path
 from datetime import datetime, timedelta
 from .config import ENTRIES_DIR
