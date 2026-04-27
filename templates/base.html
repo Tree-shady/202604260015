@@ -689,6 +689,7 @@
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('settings') }}"><i class="bi bi-gear me-2"></i>设置</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('change_password') }}"><i class="bi bi-key me-2"></i>修改密码</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i>退出登录</a></li>
                         </ul>
@@ -757,13 +758,22 @@
             });
 
             // 初始化所有 Toast 弹窗
-            const toastElements = document.querySelectorAll('.toast');
-            toastElements.forEach(function(toastElement) {
-                const toast = new bootstrap.Toast(toastElement, {
-                    delay: 5000 // 5秒后自动关闭
-                });
-                toast.show();
+        const toastElements = document.querySelectorAll('.toast');
+        toastElements.forEach(function(toastElement) {
+            const toast = new bootstrap.Toast(toastElement, {
+                delay: 5000 // 5秒后自动关闭
             });
+            toast.show();
+        });
+
+        // 检查密码是否过期
+        {% if session.get('password_expired') %}
+        setTimeout(function() {
+            if (confirm('密码已过期，请修改密码！\n\n您可以选择现在修改密码，或稍后再修改。')) {
+                window.location.href = '{{ url_for('change_password') }}';
+            }
+        }, 1000);
+        {% endif %}
         });
 
         // 加载通知列表

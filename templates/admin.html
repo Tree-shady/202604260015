@@ -92,6 +92,7 @@
                                 <th>用户名</th>
                                 <th>角色</th>
                                 <th>状态</th>
+                                <th>密码状态</th>
                                 <th>最后登录</th>
                                 <th>创建时间</th>
                                 <th>操作</th>
@@ -118,6 +119,13 @@
                                     {% endif %}
                                 </td>
                                 <td>
+                                    {% if user.password_expired %}
+                                    <span class="badge bg-danger">已过期</span>
+                                    {% else %}
+                                    <span class="badge bg-success">有效</span>
+                                    {% endif %}
+                                </td>
+                                <td>
                                     {% if user.last_login %}
                                     {{ user.last_login[:16] }}
                                     {% else %}
@@ -127,7 +135,7 @@
                                 <td>{{ user.created_at[:10] }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        {% if user.username != 'admin' %}
+                                        {% if user.username != 'Administrator' %}
                                         <form method="POST" action="{{ url_for('admin_toggle_user_status', username=user.username) }}" class="d-inline">
                                             <button type="submit" class="btn btn-outline-{{ 'warning' if user.is_active else 'success' }}" title="{{ '禁用' if user.is_active else '启用' }}">
                                                 <i class="bi bi-{{ 'x-circle' if user.is_active else 'check-circle' }}"></i>
@@ -139,11 +147,24 @@
                                                 <option value="admin" {{ 'selected' if user.role == 'admin' else '' }}>管理员</option>
                                             </select>
                                         </form>
+                                        <form method="POST" action="{{ url_for('admin_reset_password', username=user.username) }}" class="d-inline" onsubmit="return confirm('确定要重置用户 {{ user.username }} 的密码吗？')">
+                                            <div class="input-group input-group-sm">
+                                                <input type="password" class="form-control form-control-sm" name="new_password" placeholder="新密码" required>
+                                                <button type="submit" class="btn btn-outline-primary" title="重置密码">
+                                                    <i class="bi bi-key"></i>
+                                                </button>
+                                            </div>
+                                        </form>
                                         <form method="POST" action="{{ url_for('admin_delete_user', username=user.username) }}" class="d-inline" onsubmit="return confirm('确定要删除用户 {{ user.username }} 吗？')">
                                             <button type="submit" class="btn btn-outline-danger" title="删除">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        {% elif user.username == session.username %}
+                                        <!-- 当前管理员只能修改自己的密码 -->
+                                        <a href="{{ url_for('change_password') }}" class="btn btn-outline-primary" title="修改密码">
+                                            <i class="bi bi-key"></i>
+                                        </a>
                                         {% else %}
                                         <span class="text-muted">-</span>
                                         {% endif %}

@@ -554,7 +554,9 @@ def main():
     if choice == '1':
         terminal_mode()
     elif choice == '2':
-        print(f"{SUCCESS_COLOR}请使用 'python app.py' 启动 Web 应用")
+        print(f"{SUCCESS_COLOR}正在启动 Web 应用...")
+        import os
+        os.system('python app.py')
     elif choice == '0':
         print(f"{SUCCESS_COLOR}再见！")
     else:

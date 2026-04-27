@@ -27,6 +27,10 @@ class User(Base):
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    password_set_at = Column(DateTime, default=datetime.utcnow)  # 密码设置时间
+    password_expires_at = Column(DateTime, nullable=True)  # 密码过期时间
+    expires_at = Column(DateTime, nullable=True)  # 账号过期时间
+    is_temporary = Column(Boolean, default=False)  # 是否为临时账号
 
 class Entry(Base):
     __tablename__ = 'entries'

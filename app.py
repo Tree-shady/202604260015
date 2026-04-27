@@ -133,6 +133,15 @@ def log_response(response):
         logger.debug(f"Response: {response.status_code}")
     return response
 
+@app.teardown_request
+def teardown_request(exception):
+    """请求结束后关闭数据库会话"""
+    from utils.models import close_db
+    try:
+        close_db()
+    except Exception as e:
+        logger.error(f"关闭数据库会话时出错: {e}")
+
 # 安全工具函数
 def validate_date_str(date_str):
     """验证日期字符串，防止路径遍历攻击"""
@@ -211,6 +220,7 @@ def get_entry_content(date_str):
 def get_calendar_data(year, month):
     """获取日历数据"""
     from calendar import monthrange, weekday
+    from utils.models import get_session, Entry
 
     # 获取月份的天数和第一天是星期几
     days_in_month = monthrange(year, month)[1]
@@ -242,9 +252,13 @@ def get_calendar_data(year, month):
     current_month = today.month
     current_day = today.day
 
+    # 从数据库中获取所有日记日期
+    session = get_session()
+    all_entries = session.query(Entry.date_str).all()
+    entry_dates = set([entry.date_str for entry in all_entries])
+
     for day in range(1, days_in_month + 1):
         date_str = f"{year:04d}-{month:02d}-{day:02d}"
-        file_path = ENTRIES_DIR / f"{date_str}.txt"
         is_today = (year == current_year and month == current_month and day == current_day)
 
         calendar_days.append({
@@ -253,7 +267,7 @@ def get_calendar_data(year, month):
             'year': year,
             'is_other_month': False,
             'is_today': is_today,
-            'has_entry': file_path.exists(),
+            'has_entry': date_str in entry_dates,
             'date_str': date_str
         })
 
@@ -275,7 +289,9 @@ def get_calendar_data(year, month):
 
 def get_stats():
     """获取统计数据"""
-    entries = get_entries()
+    from utils.models import get_session, Entry
+    session = get_session()
+    entries = session.query(Entry).all()
     total_entries = len(entries)
 
     # 计算总字数
@@ -283,17 +299,16 @@ def get_stats():
     total_chars = 0
 
     for entry in entries:
-        with open(entry, 'r', encoding='utf-8') as f:
-            content = f.read()
-            lines = content.split('\n')
-            # 移除时间戳和标签行
-            if lines and lines[0].startswith("[") and "]" in lines[0]:
-                lines = lines[1:]
-            if lines and lines[0].startswith("Tags: "):
-                lines = lines[1:]
-            content = '\n'.join(lines)
-            total_chars += len(content)
-            total_words += len(content.split())
+        content = entry.content
+        lines = content.split('\n')
+        # 移除时间戳和标签行
+        if lines and lines[0].startswith("[") and "]" in lines[0]:
+            lines = lines[1:]
+        if lines and lines[0].startswith("Tags: "):
+            lines = lines[1:]
+        content = '\n'.join(lines)
+        total_chars += len(content)
+        total_words += len(content.split())
 
     # 获取标签统计
     tag_data = get_tags()
@@ -324,6 +339,7 @@ def login():
             session['user_id'] = result['id']
             session['username'] = result['username']
             session['role'] = result['role']
+            session['password_expired'] = result.get('password_expired', False)
             session.permanent = True
             flash(f'欢迎回来，{result["username"]}！', 'success')
 
@@ -388,6 +404,37 @@ def logout():
     session.clear()
     flash(f'{username} 已退出登录', 'info')
     return redirect(url_for('login'))
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """修改密码"""
+    if request.method == 'POST':
+        old_password = request.form.get('old_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not old_password or not new_password or not confirm_password:
+            flash('请输入所有密码字段', 'danger')
+            return redirect(url_for('change_password'))
+
+        if new_password != confirm_password:
+            flash('两次输入的新密码不一致', 'danger')
+            return redirect(url_for('change_password'))
+
+        from utils.auth import change_password as auth_change_password
+        username = session.get('username')
+        success, message = auth_change_password(username, old_password, new_password)
+
+        if success:
+            session['password_expired'] = False
+            flash(message, 'success')
+            return redirect(url_for('index'))
+        else:
+            flash(message, 'danger')
+            return redirect(url_for('change_password'))
+
+    return render_template('change_password.html')
 
 @app.route('/')
 @app.route('/<int:year>/<int:month>')
@@ -749,9 +796,12 @@ def view_tag(tag):
         for date_str in dates:
             # 验证日期字符串
             if validate_date_str(date_str):
-                file_path = ENTRIES_DIR / f"{date_str}.txt"
-                if file_path.exists():
-                    entries.append(file_path)
+                # 创建模拟的文件路径对象，保持向后兼容
+                class MockPath:
+                    def __init__(self, date_str):
+                        self.stem = date_str
+                        self.stat = lambda: type('obj', (object,), {'st_size': 0})
+                entries.append(MockPath(date_str))
         return render_template('tag.html', tag=tag, entries=entries)
     flash('未找到该标签', 'danger')
     return redirect(url_for('index'))
@@ -1140,6 +1190,38 @@ def admin_update_user_role(username):
     else:
         flash(message, 'danger')
 
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/user/<username>/reset-password', methods=['POST'])
+@admin_required
+def admin_reset_password(username):
+    """管理员重置用户密码"""
+    new_password = request.form.get('new_password', '')
+    
+    if not new_password:
+        flash('新密码不能为空', 'danger')
+        return redirect(url_for('admin_panel'))
+    
+    from utils.auth import reset_password
+    success, message = reset_password(username, new_password)
+    
+    if success:
+        try:
+            from utils.notification import add_notification
+            add_notification(
+                message=f'用户 {username} 的密码已重置',
+                level='info',
+                title='密码重置'
+            )
+        except Exception:
+            pass
+        # 如果是当前用户的密码被重置，更新session中的密码过期标志
+        if username == session.get('username'):
+            session['password_expired'] = False
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+    
     return redirect(url_for('admin_panel'))
 
 def run_production_server():
