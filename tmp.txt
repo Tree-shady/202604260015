@@ -1,0 +1,11 @@
+        # 处理标签
+        if tags_str:
+            tags = sanitize_tags(tags_str)
+            for tag_name in tags:
+                if tag_name and validate_tag(tag_name):
+                    # 查找或创建标签
+                    tag = db_session.query(Tag).filter_by(name=tag_name).first()
+                    if not tag:
+                        tag = Tag(name=tag_name)
+                        db_session.add(tag)
+                    entry.tags.append(tag)

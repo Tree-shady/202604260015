@@ -5,6 +5,9 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # 配置
 ENTRIES_DIR = Path("entries")
@@ -17,6 +20,9 @@ IMAGES_DIR.mkdir(exist_ok=True)
 
 # 导入数据库模型
 from utils.models import init_db, get_session, Entry, Tag, Mood
+
+# 导入验证模块
+from utils.validation import validate_date_str, validate_tag, sanitize_tags
 
 # 导入用户认证模块
 from utils.auth import (
@@ -41,20 +47,15 @@ class Config:
     """应用配置类"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'diary-app-secret-key-2026'
 
-    # 数据库配置（如果有）
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{Path("diary.db")}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # 分页配置
     ENTRIES_PER_PAGE = 20
 
-    # 上传配置
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 
-    # Session 配置
     PERMANENT_SESSION_LIFETIME = 86400 * 7  # 7 天
 
-    # 日志配置
     LOG_LEVEL = logging.INFO
     LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
@@ -143,31 +144,14 @@ def teardown_request(exception):
         logger.error(f"关闭数据库会话时出错: {e}")
 
 # 安全工具函数
-def validate_date_str(date_str):
-    """验证日期字符串，防止路径遍历攻击"""
-    import re
-    # 验证日期格式：YYYY-MM-DD
-    if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        return False
-    # 验证日期是否有效
-    try:
-        datetime.strptime(date_str, DATE_FORMAT)
-        return True
-    except ValueError:
-        return False
+def get_tags():
+    session = get_session()
+    tags = session.query(Tag).all()
+    return {tag.name: [entry.date_str for entry in tag.entries] for tag in tags}
 
-def validate_tag(tag):
-    """验证标签名称，防止恶意输入"""
-    import re
-    # 标签只能包含字母、数字、中文、下划线、连字符
-    if not re.match(r'^[\w\u4e00-\u9fa5-]+$', tag):
-        return False
-    # 标签长度限制
-    if len(tag) > 50:
-        return False
-    return True
+def save_tags(tags):
+    pass
 
-# 错误处理器
 @app.errorhandler(404)
 def not_found_error(error):
     """404 错误处理"""
@@ -187,15 +171,6 @@ def handle_exception(error):
     logger.exception(f"Unhandled Exception: {error}")
     flash('发生未知错误', 'danger')
     return redirect(url_for('index'))
-
-def get_tags():
-    session = get_session()
-    tags = session.query(Tag).all()
-    return {tag.name: [entry.date_str for entry in tag.entries] for tag in tags}
-
-def save_tags(tags):
-    # 此函数现在主要用于保持向后兼容
-    pass
 
 def get_entries():
     session = get_session()
@@ -565,9 +540,9 @@ def new_entry():
 
         # 处理标签
         if tags_str:
-            tags = [tag.strip() for tag in tags_str.split(',')]
+            tags = sanitize_tags(tags_str)
             for tag_name in tags:
-                if tag_name:
+                if tag_name and validate_tag(tag_name):
                     # 查找或创建标签
                     tag = db_session.query(Tag).filter_by(name=tag_name).first()
                     if not tag:
@@ -713,9 +688,9 @@ def edit_entry(date_str):
         # 更新标签
         entry.tags = []
         if tags_str:
-            tags_list = [tag.strip() for tag in tags_str.split(',')]
+            tags_list = sanitize_tags(tags_str)
             for tag_name in tags_list:
-                if tag_name:
+                if tag_name and validate_tag(tag_name):
                     # 查找或创建标签
                     tag = db_session.query(Tag).filter_by(name=tag_name).first()
                     if not tag:
@@ -1226,6 +1201,9 @@ def admin_reset_password(username):
 
 def run_production_server():
     """运行生产服务器"""
+    if not os.environ.get('SECRET_KEY'):
+        logger.warning("生产环境未设置 SECRET_KEY 环境变量，使用默认值")
+
     try:
         from gunicorn.app.wsgiapp import WSGIApplication
     except ImportError:

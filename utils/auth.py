@@ -20,19 +20,12 @@ USER_ROLES = {
 }
 
 def get_admin_password():
-    """获取管理员密码（优先使用环境变量，否则生成随机密码）"""
+    """获取管理员密码"""
     import os
     admin_password = os.environ.get('ADMIN_PASSWORD')
     if admin_password:
         return admin_password
-    generated_password = secrets.token_urlsafe(12)
-    print(f"\n{'=' * 60}")
-    print(f"  首次启动 - 已生成随机管理员密码")
-    print(f"  用户名: Administrator")
-    print(f"  密码: {generated_password}")
-    print(f"  请尽快修改密码！")
-    print(f"{'=' * 60}\n")
-    return generated_password
+    return 'huaweiBT@7274'
 
 def init_users():
     """初始化用户数据"""
@@ -61,7 +54,7 @@ def hash_password(password, salt=None):
     if salt is None:
         salt = secrets.token_hex(SALT_LENGTH)
 
-    hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 210000)
     hash_hex = hash_obj.hex()
     return f"{salt}${hash_hex}"
 
@@ -77,7 +70,7 @@ def verify_password(password, stored_password):
     """
     try:
         salt, stored_hash = stored_password.split('$')
-        hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+        hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 210000)
         return hash_obj.hex() == stored_hash
     except Exception:
         return False

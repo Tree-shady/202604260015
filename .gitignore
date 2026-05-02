@@ -1,3 +1,5 @@
 entries
 entries_backup_*
 .\trae
+.env
+diary.db

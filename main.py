@@ -13,6 +13,7 @@ from utils.search import search_entries as search_entries_util
 from utils.stats import get_diary_stats, get_tag_stats, parse_relative_date, export_diary, export_all_diaries
 from utils.notification import show_notification
 from utils.settings import show_settings
+from utils.validation import validate_date_str, validate_tag, sanitize_tags
 
 init(autoreset=True)
 
@@ -53,7 +54,8 @@ def write_entry(content, date_str=None, tags_str=None):
     
     # 更新标签索引
     if tags_str:
-        tags = [tag.strip() for tag in tags_str.split(',')]
+        tags = sanitize_tags(tags_str)
+        tags = [tag for tag in tags if validate_tag(tag)]
         update_tags_index(date_str, tags)
     
     print(f"{SUCCESS_COLOR}日记已保存至 {file_path}")
@@ -121,19 +123,6 @@ def search_entries(keyword):
                         print(f"      {TEXT_COLOR}{line.strip()}")
     else:
         print(f"{ACCENT_COLOR}未找到包含 '{keyword}' 的日记")
-
-def validate_date_str(date_str):
-    """验证日期字符串"""
-    import re
-    # 验证日期格式：YYYY-MM-DD
-    if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        return False
-    # 验证日期是否有效
-    try:
-        datetime.strptime(date_str, DATE_FORMAT)
-        return True
-    except ValueError:
-        return False
 
 def delete_entry(date_str):
     """删除指定日期的日记"""
@@ -232,7 +221,8 @@ def edit_entry(date_str):
 
         # 更新标签索引
         if new_tags_str:
-            tags = [tag.strip() for tag in new_tags_str.split(',')]
+            tags = sanitize_tags(new_tags_str)
+            tags = [tag for tag in tags if validate_tag(tag)]
             update_tags_index(date_str, tags)
 
         print(f"{SUCCESS_COLOR}日记已更新")
@@ -556,7 +546,7 @@ def main():
     elif choice == '2':
         print(f"{SUCCESS_COLOR}正在启动 Web 应用...")
         import os
-        os.system('python app.py')
+        os.system('python3 app.py')
     elif choice == '0':
         print(f"{SUCCESS_COLOR}再见！")
     else:
