@@ -475,12 +475,18 @@ def settings():
 @login_required
 def new_entry():
     if request.method == 'POST':
+        logger.info("收到新日记保存请求")
+        logger.info(f"请求数据: {dict(request.form)}")
+        
         date_str = request.form['date']
         tags_str = request.form['tags']
         content = request.form['content']
         template_id = request.form.get('template', '')
         mood_type = request.form.get('mood', 'neutral')
         mood_note = request.form.get('mood_note', '')
+        
+        logger.info(f"用户ID: {session.get('user_id')}")
+        logger.info(f"日期: {date_str}, 标签: {tags_str}")
 
         if not date_str or not content:
             flash('日期和内容不能为空', 'danger')
@@ -521,14 +527,18 @@ def new_entry():
         # 保存日记到数据库
         db_session = get_session()
         current_user_id = session.get('user_id')
+        
+        logger.info(f"准备保存日记 - 用户ID: {current_user_id}")
 
         # 检查是否已存在该日期的日记
         existing_entry = db_session.query(Entry).filter_by(user_id=current_user_id, date_str=date_str).first()
         if existing_entry:
+            logger.warning(f"该日期的日记已存在: {date_str}")
             flash('该日期的日记已存在', 'danger')
             return redirect(url_for('new_entry'))
 
         # 创建新日记
+        logger.info(f"创建新日记对象 - 日期: {date_str}")
         entry = Entry(
             user_id=current_user_id,
             date_str=date_str,
@@ -537,9 +547,11 @@ def new_entry():
         )
         db_session.add(entry)
         db_session.flush()  # 获取entry.id
+        logger.info(f"日记对象已添加到会话，ID: {entry.id}")
 
         # 处理标签
         if tags_str:
+            logger.info(f"处理标签: {tags_str}")
             tags = sanitize_tags(tags_str)
             for tag_name in tags:
                 if tag_name and validate_tag(tag_name):
@@ -561,7 +573,9 @@ def new_entry():
         except Exception as e:
             logger.error(f"保存心情数据失败: {e}")
 
+        logger.info("准备提交事务")
         db_session.commit()
+        logger.info("事务提交成功")
 
         # 添加通知
         try:

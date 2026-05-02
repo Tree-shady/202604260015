@@ -19,7 +19,7 @@ entry_tags = Table('entry_tags', Base.metadata,
 
 class User(Base):
     __tablename__ = 'users'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
@@ -27,72 +27,71 @@ class User(Base):
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    password_set_at = Column(DateTime, default=datetime.utcnow)  # 密码设置时间
-    password_expires_at = Column(DateTime, nullable=True)  # 密码过期时间
-    expires_at = Column(DateTime, nullable=True)  # 账号过期时间
-    is_temporary = Column(Boolean, default=False)  # 是否为临时账号
+    password_set_at = Column(DateTime, default=datetime.utcnow)
+    password_expires_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    is_temporary = Column(Boolean, default=False)
+
+    entries = relationship('Entry', back_populates='user', cascade='all, delete-orphan')
 
 class Entry(Base):
     __tablename__ = 'entries'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    date_str = Column(String(10), unique=True, nullable=False)  # YYYY-MM-DD
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    date_str = Column(String(10), nullable=False)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # 关联
+    user = relationship('User', back_populates='entries')
     tags = relationship('Tag', secondary=entry_tags, back_populates='entries')
-    mood = relationship('Mood', back_populates='entry', uselist=False)
+    mood = relationship('Mood', back_populates='entry', uselist=False, cascade='all, delete-orphan')
     images = relationship('Image', back_populates='entry', cascade='all, delete-orphan')
 
 class Tag(Base):
     __tablename__ = 'tags'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(50), unique=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # 关联
+
     entries = relationship('Entry', secondary=entry_tags, back_populates='tags')
 
 class Mood(Base):
     __tablename__ = 'moods'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     entry_id = Column(Integer, ForeignKey('entries.id'), unique=True, nullable=False)
     mood_type = Column(String(20), nullable=False, default='neutral')
     note = Column(String(200))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # 关联
+
     entry = relationship('Entry', back_populates='mood')
 
 class Image(Base):
     __tablename__ = 'images'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     entry_id = Column(Integer, ForeignKey('entries.id'), nullable=False)
     file_path = Column(String(255), nullable=False)
     filename = Column(String(100), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # 关联
+
     entry = relationship('Entry', back_populates='images')
 
 class Notification(Base):
     __tablename__ = 'notifications'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(100), nullable=False)
     message = Column(Text, nullable=False)
-    level = Column(String(20), nullable=False, default='info')  # info, warning, error, success
+    level = Column(String(20), nullable=False, default='info')
     read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# 数据库引擎和会话
 engine = None
 
 def init_db(db_url):

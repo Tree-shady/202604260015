@@ -109,33 +109,6 @@
                             </div>
                         </div>
                         
-                        <!-- 图片上传模态框 -->
-                        <div class="modal fade" id="imageUploadModal" tabindex="-1" aria-labelledby="imageUploadModalLabel" aria-hidden="true">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title" id="imageUploadModalLabel">上传图片</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <form id="imageUploadForm" action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
-                                            <input type="hidden" name="date" value="{{ current_date }}">
-                                            <div class="mb-3">
-                                                <label for="image" class="form-label">选择图片</label>
-                                                <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
-                                            </div>
-                                            <div class="text-muted small">
-                                                支持 PNG、JPG、JPEG、GIF、WebP 格式，最大 10MB
-                                            </div>
-                                        </form>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                                        <button type="button" class="btn btn-primary" id="submitImageUpload">上传</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-lg"></i> 保存
@@ -150,8 +123,48 @@
         </div>
     </div>
     
+    <!-- 图片上传模态框 (移到主表单外部) -->
+    <div class="modal fade" id="imageUploadModal" tabindex="-1" aria-labelledby="imageUploadModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageUploadModalLabel">上传图片</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="imageUploadForm" action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="date" value="{{ current_date }}">
+                        <div class="mb-3">
+                            <label for="image" class="form-label">选择图片</label>
+                            <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
+                        </div>
+                        <div class="text-muted small">
+                            支持 PNG、JPG、JPEG、GIF、WebP 格式，最大 10MB
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="submitImageUpload">上传</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // 表单提交监听
+            const mainForm = document.querySelector('form[method="POST"]');
+            if (mainForm) {
+                mainForm.addEventListener('submit', function(event) {
+                    console.log('表单提交中...');
+                    console.log('日期值:', document.getElementById('date').value);
+                    console.log('内容值:', document.getElementById('content').value);
+                    console.log('表单数据:', new FormData(mainForm));
+                    return true; // 继续提交
+                });
+            }
+            
             // 图片上传按钮
             const uploadImageBtn = document.getElementById('uploadImageBtn');
             const imageUploadModal = new bootstrap.Modal(document.getElementById('imageUploadModal'));
