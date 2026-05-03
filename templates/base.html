@@ -849,6 +849,7 @@
 
         // 删除单个通知
         async function deleteNotification(id) {
+            if (!confirm('确定要删除这条通知吗？')) return;
             try {
                 await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
                 loadNotifications();

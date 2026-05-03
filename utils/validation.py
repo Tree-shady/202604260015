@@ -15,9 +15,11 @@ def validate_date_str(date_str):
 
 def validate_tag(tag):
     """验证标签名称，防止恶意输入"""
-    if not re.match(r'^[\w\u4e00-\u9fa5-]+$', tag):
+    if not tag:
         return False
-    if len(tag) > 50:
+    if len(tag) < 1 or len(tag) > 30:
+        return False
+    if not re.match(r'^[\w\u4e00-\u9fa5]+$', tag):
         return False
     return True
 

@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h2><i class="bi bi-exclamation-triangle"></i> 确认删除日记</h2>
+                </div>
+                <div class="card-body">
+                    <p class="lead">确定要删除 <strong>{{ date_str }}</strong> 这篇日记吗？</p>
+                    <p class="text-muted">此操作不可撤销，删除后将无法恢复。</p>
+
+                    <div class="mt-4">
+                        <h5>日记预览：</h5>
+                        <div class="bg-light p-3 rounded border">
+                            <p class="mb-1"><strong>日期：</strong>{{ date_str }}</p>
+                            <p class="mb-1"><strong>心情：</strong>{{ mood_info.emoji }} {{ mood_info.label }}</p>
+                            {% if tags %}
+                            <p class="mb-1"><strong>标签：</strong>{% for tag in tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+                            {% endif %}
+                            <p class="mb-0"><strong>内容：</strong>{{ content[:100] }}{% if content|length > 100 %}...{% endif %}</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <form method="POST" action="{{ url_for('delete_entry', date_str=date_str) }}" class="d-inline">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> 确认删除
+                            </button>
+                        </form>
+                        <a href="{{ url_for('view_entry', date_str=date_str) }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg"></i> 取消
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

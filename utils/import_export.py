@@ -9,309 +9,159 @@ import csv
 import zipfile
 from pathlib import Path
 from datetime import datetime
-from .storage import get_entries, get_entry_content, get_tags, save_tags, update_tags_index
-from .config import ENTRIES_DIR, TAGS_FILE, DATE_FORMAT
+
+def get_db_session():
+    """获取数据库会话"""
+    from sqlalchemy.orm import sessionmaker
+    from .models import engine
+    Session = sessionmaker(bind=engine)
+    return Session()
 
 def export_to_json(output_file=None):
-    """导出日记数据到 JSON 文件
-    
-    Args:
-        output_file: 输出文件路径，默认生成 timestamp-based 文件名
-    
-    Returns:
-        Path: 导出文件的路径
-    """
+    """导出日记数据到 JSON 文件"""
     if output_file is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_file = f"diary_export_{timestamp}.json"
     
     output_path = Path(output_file)
+    session = get_db_session()
     
-    # 收集数据
+    from .models import Entry, Tag, Mood
+    
     data = {
         'export_date': datetime.now().isoformat(),
         'diaries': [],
-        'tags': get_tags()
+        'tags': []
     }
     
-    # 导出日记
-    entries = get_entries()
+    entries = session.query(Entry).all()
     for entry in entries:
-        date_str = entry.stem
-        timestamp, tags, content = get_entry_content(date_str)
+        mood_info = None
+        if entry.mood:
+            mood_info = {
+                'type': entry.mood.mood_type,
+                'note': entry.mood.note
+            }
         
         data['diaries'].append({
-            'date': date_str,
-            'timestamp': timestamp,
-            'tags': tags,
-            'content': content
+            'date': entry.date_str,
+            'timestamp': entry.timestamp.isoformat() if entry.timestamp else None,
+            'tags': [t.name for t in entry.tags],
+            'content': entry.content,
+            'mood': mood_info
         })
     
-    # 保存到文件
+    data['tags'] = [t.name for t in session.query(Tag).all()]
+    
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     
     return output_path
 
 def export_to_csv(output_file=None):
-    """导出日记数据到 CSV 文件
-    
-    Args:
-        output_file: 输出文件路径，默认生成 timestamp-based 文件名
-    
-    Returns:
-        Path: 导出文件的路径
-    """
+    """导出日记数据到 CSV 文件"""
     if output_file is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_file = f"diary_export_{timestamp}.csv"
     
     output_path = Path(output_file)
+    session = get_db_session()
     
-    # 写入 CSV
+    from .models import Entry
+    
     with open(output_path, 'w', newline='', encoding='utf-8-sig') as f:
         writer = csv.writer(f)
-        writer.writerow(['Date', 'Timestamp', 'Tags', 'Content'])
+        writer.writerow(['Date', 'Timestamp', 'Mood', 'Tags', 'Content'])
         
-        entries = get_entries()
+        entries = session.query(Entry).all()
         for entry in entries:
-            date_str = entry.stem
-            timestamp, tags, content = get_entry_content(date_str)
-            tags_str = ', '.join(tags)
-            writer.writerow([date_str, timestamp, tags_str, content])
+            date_str = entry.date_str
+            timestamp = entry.timestamp.strftime('%Y-%m-%d %H:%M') if entry.timestamp else ''
+            mood = entry.mood.mood_type if entry.mood else ''
+            tags = ', '.join([t.name for t in entry.tags])
+            writer.writerow([date_str, timestamp, mood, tags, entry.content])
     
     return output_path
 
 def export_to_markdown(output_dir=None):
-    """导出日记数据到 Markdown 文件（每个日记一个文件）
-    
-    Args:
-        output_dir: 输出目录，默认生成 timestamp-based 目录名
-    
-    Returns:
-        Path: 导出目录的路径
-    """
+    """导出日记数据到 Markdown 文件"""
     if output_dir is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = f"diary_export_{timestamp}"
     
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
+    session = get_db_session()
     
-    entries = get_entries()
+    from .models import Entry
+    
+    mood_emoji = {'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'}
+    mood_labels = {'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'}
+    
+    entries = session.query(Entry).all()
     for entry in entries:
-        date_str = entry.stem
-        timestamp, tags, content = get_entry_content(date_str)
+        date_str = entry.date_str
+        timestamp = entry.timestamp.strftime('%Y-%m-%d %H:%M') if entry.timestamp else ''
+        tags = ', '.join([t.name for t in entry.tags])
         
-        # 创建 Markdown 文件
+        mood_display = ''
+        if entry.mood:
+            mood_type = entry.mood.mood_type
+            mood_display = f"{mood_emoji.get(mood_type, '😐')} {mood_labels.get(mood_type, '一般')}"
+            if entry.mood.note:
+                mood_display += f" - {entry.mood.note}"
+        
         md_file = output_path / f"{date_str}.md"
         with open(md_file, 'w', encoding='utf-8') as f:
             f.write(f"# {date_str} 的日记\n\n")
             if timestamp:
                 f.write(f"**时间：** {timestamp}\n\n")
+            if mood_display:
+                f.write(f"**心情：** {mood_display}\n\n")
             if tags:
-                f.write(f"**标签：** {', '.join(tags)}\n\n")
-            f.write(content)
+                f.write(f"**标签：** {tags}\n\n")
+            f.write(entry.content)
     
     return output_path
 
 def export_to_zip(output_file=None):
-    """导出日记数据到 ZIP 文件（包含所有日记和标签）
-    
-    Args:
-        output_file: 输出文件路径，默认生成 timestamp-based 文件名
-    
-    Returns:
-        Path: 导出文件的路径
-    """
+    """导出日记数据到 ZIP 文件"""
     if output_file is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_file = f"diary_export_{timestamp}.zip"
     
     output_path = Path(output_file)
+    session = get_db_session()
+    
+    from .models import Entry, Tag
     
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # 导出标签文件
-        with open(TAGS_FILE, 'r', encoding='utf-8') as f:
-            tags_content = f.read()
-        zf.writestr('tags.json', tags_content)
+        entries_data = []
         
-        # 导出日记文件
-        entries = get_entries()
+        entries = session.query(Entry).all()
         for entry in entries:
-            date_str = entry.stem
-            with open(entry, 'r', encoding='utf-8') as f:
-                content = f.read()
-            zf.writestr(f'entries/{date_str}.txt', content)
+            entry_dict = {
+                'date': entry.date_str,
+                'timestamp': entry.timestamp.isoformat() if entry.timestamp else None,
+                'content': entry.content,
+                'tags': [t.name for t in entry.tags],
+                'mood': None
+            }
+            if entry.mood:
+                entry_dict['mood'] = {
+                    'type': entry.mood.mood_type,
+                    'note': entry.mood.note
+                }
+            entries_data.append(entry_dict)
+        
+        tags_data = [{'name': t.name} for t in session.query(Tag).all()]
+        
+        export_data = {
+            'export_date': datetime.now().isoformat(),
+            'diaries': entries_data,
+            'tags': tags_data
+        }
+        
+        zf.writestr('diaries.json', json.dumps(export_data, ensure_ascii=False, indent=2))
     
     return output_path
-
-def import_from_json(input_file):
-    """从 JSON 文件导入日记数据
-    
-    Args:
-        input_file: 输入 JSON 文件路径
-    
-    Returns:
-        dict: 导入结果，包含成功和失败的数量
-    """
-    input_path = Path(input_file)
-    if not input_path.exists():
-        raise FileNotFoundError(f"文件不存在: {input_file}")
-    
-    with open(input_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    success_count = 0
-    failed_count = 0
-    
-    # 导入日记
-    diaries = data.get('diaries', [])
-    for diary in diaries:
-        date_str = diary.get('date')
-        content = diary.get('content', '')
-        tags = diary.get('tags', [])
-        
-        if not date_str or not content:
-            failed_count += 1
-            continue
-        
-        try:
-            # 验证日期格式
-            datetime.strptime(date_str, DATE_FORMAT)
-            
-            # 保存日记
-            file_path = ENTRIES_DIR / f"{date_str}.txt"
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            full_content = f"[{timestamp}]\n"
-            if tags:
-                full_content += f"Tags: {', '.join(tags)}\n"
-            full_content += content
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(full_content)
-            
-            # 更新标签索引
-            update_tags_index(date_str, tags)
-            success_count += 1
-        except Exception:
-            failed_count += 1
-    
-    # 导入标签
-    if 'tags' in data:
-        try:
-            save_tags(data['tags'])
-        except Exception:
-            pass
-    
-    return {
-        'success': success_count,
-        'failed': failed_count
-    }
-
-def import_from_zip(input_file):
-    """从 ZIP 文件导入日记数据
-    
-    Args:
-        input_file: 输入 ZIP 文件路径
-    
-    Returns:
-        dict: 导入结果，包含成功和失败的数量
-    """
-    input_path = Path(input_file)
-    if not input_path.exists():
-        raise FileNotFoundError(f"文件不存在: {input_file}")
-    
-    success_count = 0
-    failed_count = 0
-    
-    with zipfile.ZipFile(input_path, 'r') as zf:
-        # 导入标签文件
-        if 'tags.json' in zf.namelist():
-            try:
-                with zf.open('tags.json') as f:
-                    tags_content = f.read().decode('utf-8')
-                    tags_data = json.loads(tags_content)
-                    save_tags(tags_data)
-            except Exception:
-                pass
-        
-        # 导入日记文件
-        for name in zf.namelist():
-            if name.startswith('entries/') and name.endswith('.txt'):
-                try:
-                    date_str = Path(name).stem
-                    
-                    # 验证日期格式
-                    datetime.strptime(date_str, DATE_FORMAT)
-                    
-                    # 保存日记
-                    file_path = ENTRIES_DIR / f"{date_str}.txt"
-                    with zf.open(name) as f:
-                        content = f.read().decode('utf-8')
-                    
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    
-                    success_count += 1
-                except Exception:
-                    failed_count += 1
-    
-    return {
-        'success': success_count,
-        'failed': failed_count
-    }
-
-def import_from_directory(input_dir):
-    """从目录导入日记数据（支持 .txt 和 .md 文件）
-    
-    Args:
-        input_dir: 输入目录路径
-    
-    Returns:
-        dict: 导入结果，包含成功和失败的数量
-    """
-    input_path = Path(input_dir)
-    if not input_path.exists() or not input_path.is_dir():
-        raise FileNotFoundError(f"目录不存在: {input_dir}")
-    
-    success_count = 0
-    failed_count = 0
-    
-    # 导入 .txt 和 .md 文件
-    for file in input_path.glob("*.txt"):
-        try:
-            date_str = file.stem
-            
-            # 验证日期格式
-            datetime.strptime(date_str, DATE_FORMAT)
-            
-            # 复制文件
-            file_path = ENTRIES_DIR / f"{date_str}.txt"
-            file_path.write_text(file.read_text(encoding='utf-8'), encoding='utf-8')
-            
-            success_count += 1
-        except Exception:
-            failed_count += 1
-    
-    for file in input_path.glob("*.md"):
-        try:
-            date_str = file.stem
-            
-            # 验证日期格式
-            datetime.strptime(date_str, DATE_FORMAT)
-            
-            # 转换为 txt 格式
-            content = file.read_text(encoding='utf-8')
-            file_path = ENTRIES_DIR / f"{date_str}.txt"
-            file_path.write_text(content, encoding='utf-8')
-            
-            success_count += 1
-        except Exception:
-            failed_count += 1
-    
-    return {
-        'success': success_count,
-        'failed': failed_count
-    }

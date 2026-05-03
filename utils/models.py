@@ -11,7 +11,6 @@ Base = declarative_base()
 
 _thread_local = local()
 
-# 关联表
 entry_tags = Table('entry_tags', Base.metadata,
     Column('entry_id', Integer, ForeignKey('entries.id'), primary_key=True),
     Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
@@ -92,16 +91,23 @@ class Notification(Base):
     read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class LoginAttempt(Base):
+    __tablename__ = 'login_attempts'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), nullable=False, index=True)
+    ip_address = Column(String(45), nullable=True)
+    attempt_time = Column(DateTime, default=datetime.utcnow, index=True)
+    success = Column(Boolean, default=False)
+
 engine = None
 
 def init_db(db_url):
-    """初始化数据库"""
     global engine
     engine = create_engine(db_url)
     Base.metadata.create_all(engine)
 
 def get_session():
-    """获取数据库会话（线程安全）"""
     if not hasattr(_thread_local, 'session'):
         if engine is None:
             raise RuntimeError("数据库未初始化，请先调用 init_db()")
@@ -110,7 +116,6 @@ def get_session():
     return _thread_local.session
 
 def close_db():
-    """关闭当前线程的数据库连接"""
     if hasattr(_thread_local, 'session'):
         _thread_local.session.close()
         del _thread_local.session

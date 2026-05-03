@@ -9,9 +9,12 @@ import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import session, redirect, url_for, flash
-from .models import get_session, User
+from .models import get_session, User, LoginAttempt
 
 SALT_LENGTH = 32
+
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION = 300
 
 USER_ROLES = {
     'superadmin': '超级管理员',
@@ -27,10 +30,69 @@ def get_admin_password():
         return admin_password
     return 'huaweiBT@7274'
 
+def check_login_lockout(username, ip_address=None):
+    """检查用户是否被锁定 (使用数据库)"""
+    db_session = get_session()
+    cutoff_time = datetime.utcnow() - timedelta(seconds=LOCKOUT_DURATION)
+    
+    failure_count = db_session.query(LoginAttempt).filter(
+        LoginAttempt.username == username,
+        LoginAttempt.success == False,
+        LoginAttempt.attempt_time > cutoff_time
+    ).count()
+    
+    if failure_count >= MAX_LOGIN_ATTEMPTS:
+        return False
+    return True
+
+def record_login_failure(username, ip_address=None):
+    """记录登录失败 (使用数据库)"""
+    db_session = get_session()
+    attempt = LoginAttempt(
+        username=username,
+        ip_address=ip_address,
+        success=False
+    )
+    db_session.add(attempt)
+    db_session.commit()
+
+def clear_login_failure(username):
+    """清除登录失败记录 (使用数据库)"""
+    db_session = get_session()
+    db_session.query(LoginAttempt).filter(
+        LoginAttempt.username == username,
+        LoginAttempt.success == False
+    ).delete()
+    db_session.commit()
+
+def record_login_success(username, ip_address=None):
+    """记录登录成功 (使用数据库)"""
+    db_session = get_session()
+    attempt = LoginAttempt(
+        username=username,
+        ip_address=ip_address,
+        success=True
+    )
+    db_session.add(attempt)
+    db_session.commit()
+
+def get_remaining_attempts(username):
+    """获取剩余登录尝试次数 (使用数据库)"""
+    db_session = get_session()
+    cutoff_time = datetime.utcnow() - timedelta(seconds=LOCKOUT_DURATION)
+    
+    failure_count = db_session.query(LoginAttempt).filter(
+        LoginAttempt.username == username,
+        LoginAttempt.success == False,
+        LoginAttempt.attempt_time > cutoff_time
+    ).count()
+    
+    return max(0, MAX_LOGIN_ATTEMPTS - failure_count)
+
 def init_users():
     """初始化用户数据"""
-    session = get_session()
-    admin_user = session.query(User).filter_by(username='Administrator').first()
+    db_session = get_session()
+    admin_user = db_session.query(User).filter_by(username='Administrator').first()
     if not admin_user:
         admin_user = User(
             username='Administrator',
@@ -38,8 +100,8 @@ def init_users():
             role='admin',
             active=True
         )
-        session.add(admin_user)
-        session.commit()
+        db_session.add(admin_user)
+        db_session.commit()
 
 def hash_password(password, salt=None):
     """哈希密码
@@ -81,21 +143,19 @@ def get_users():
     Returns:
         list: 用户列表
     """
-    session = get_session()
-    users = session.query(User).all()
+    db_session = get_session()
+    users = db_session.query(User).all()
     user_list = []
-    
+
     for user in users:
-        # 检查账号是否过期
         if user.expires_at and user.expires_at < datetime.now() and user.active:
             user.active = False
-            session.commit()
-        
-        # 检查密码是否过期
+            db_session.commit()
+
         password_expired = False
         if user.password_expires_at and user.password_expires_at < datetime.now():
             password_expired = True
-        
+
         user_list.append({
             'id': user.id,
             'username': user.username,
@@ -109,7 +169,7 @@ def get_users():
             'password_expired': password_expired,
             'password_expires_at': user.password_expires_at.isoformat() if user.password_expires_at else None
         })
-    
+
     return user_list
 
 def get_user_by_username(username):
@@ -121,19 +181,17 @@ def get_user_by_username(username):
     Returns:
         dict: 用户信息，如果不存在返回None
     """
-    session = get_session()
-    user = session.query(User).filter_by(username=username).first()
+    db_session = get_session()
+    user = db_session.query(User).filter_by(username=username).first()
     if user:
-        # 检查账号是否过期
         if user.expires_at and user.expires_at < datetime.now() and user.active:
             user.active = False
-            session.commit()
-        
-        # 检查密码是否过期
+            db_session.commit()
+
         password_expired = False
         if user.password_expires_at and user.password_expires_at < datetime.now():
             password_expired = True
-        
+
         return {
             'id': user.id,
             'username': user.username,
@@ -158,19 +216,17 @@ def get_user_by_id(user_id):
     Returns:
         dict: 用户信息，如果不存在返回None
     """
-    session = get_session()
-    user = session.query(User).filter_by(id=user_id).first()
+    db_session = get_session()
+    user = db_session.query(User).filter_by(id=user_id).first()
     if user:
-        # 检查账号是否过期
         if user.expires_at and user.expires_at < datetime.now() and user.active:
             user.active = False
-            session.commit()
-        
-        # 检查密码是否过期
+            db_session.commit()
+
         password_expired = False
         if user.password_expires_at and user.password_expires_at < datetime.now():
             password_expired = True
-        
+
         return {
             'id': user.id,
             'username': user.username,
@@ -199,9 +255,9 @@ def create_user(username, password, role='user', expires_in=None, is_temporary=F
     Returns:
         tuple: (成功标志, 消息)
     """
-    session = get_session()
+    db_session = get_session()
 
-    if session.query(User).filter_by(username=username).first():
+    if db_session.query(User).filter_by(username=username).first():
         return False, "用户名已存在"
 
     if role not in USER_ROLES:
@@ -219,8 +275,8 @@ def create_user(username, password, role='user', expires_in=None, is_temporary=F
         from datetime import datetime, timedelta
         new_user.expires_at = datetime.now() + timedelta(seconds=expires_in)
 
-    session.add(new_user)
-    session.commit()
+    db_session.add(new_user)
+    db_session.commit()
 
     return True, "用户创建成功"
 
@@ -234,8 +290,8 @@ def authenticate_user(username, password):
     Returns:
         tuple: (成功标志, 用户信息或错误消息)
     """
-    session = get_session()
-    user = session.query(User).filter_by(username=username).first()
+    db_session = get_session()
+    user = db_session.query(User).filter_by(username=username).first()
 
     if not user:
         return False, "用户名或密码错误"
@@ -243,20 +299,17 @@ def authenticate_user(username, password):
     if not user.active:
         return False, "账户已被禁用"
 
-    # 检查账号是否过期
     if user.expires_at and user.expires_at < datetime.now():
         user.active = False
-        session.commit()
+        db_session.commit()
         return False, "账户已过期"
 
     if not verify_password(password, user.password_hash):
         return False, "用户名或密码错误"
 
-    # 更新最后登录时间
     user.updated_at = datetime.now()
-    session.commit()
+    db_session.commit()
 
-    # 检查密码是否过期
     password_expired = False
     if user.password_expires_at and user.password_expires_at < datetime.now():
         password_expired = True
@@ -281,14 +334,14 @@ def save_user(user):
     Args:
         user: 用户信息字典
     """
-    session = get_session()
-    db_user = session.query(User).filter_by(username=user['username']).first()
+    db_session = get_session()
+    db_user = db_session.query(User).filter_by(username=user['username']).first()
     if db_user:
         db_user.password_hash = user.get('password_hash', db_user.password_hash)
         db_user.role = user.get('role', db_user.role)
         db_user.active = user.get('is_active', db_user.active)
         db_user.updated_at = datetime.now()
-        session.commit()
+        db_session.commit()
 
 def delete_user(username, current_user_role=None):
     """删除用户
@@ -303,13 +356,13 @@ def delete_user(username, current_user_role=None):
     if username == 'Administrator' and current_user_role != 'superadmin':
         return False, "不能删除超级管理员账户"
 
-    session = get_session()
-    user = session.query(User).filter_by(username=username).first()
+    db_session = get_session()
+    user = db_session.query(User).filter_by(username=username).first()
     if not user:
         return False, "用户不存在"
 
-    session.delete(user)
-    session.commit()
+    db_session.delete(user)
+    db_session.commit()
 
     return True, "用户删除成功"
 
@@ -330,14 +383,14 @@ def update_user_role(username, new_role, current_user_role=None):
     if new_role not in USER_ROLES:
         return False, "无效的角色"
 
-    session = get_session()
-    user = session.query(User).filter_by(username=username).first()
+    db_session = get_session()
+    user = db_session.query(User).filter_by(username=username).first()
     if not user:
         return False, "用户不存在"
 
     user.role = new_role
     user.updated_at = datetime.now()
-    session.commit()
+    db_session.commit()
 
     return True, f"用户角色已更新为 {USER_ROLES[new_role]}"
 
@@ -354,18 +407,17 @@ def toggle_user_status(username, current_user_role=None):
     if username == 'Administrator' and current_user_role != 'superadmin':
         return False, "不能修改超级管理员状态"
 
-    session = get_session()
-    user = session.query(User).filter_by(username=username).first()
+    db_session = get_session()
+    user = db_session.query(User).filter_by(username=username).first()
     if not user:
         return False, "用户不存在"
 
-    # 检查临时账号是否过期，过期后不能重新启用
     if user.is_temporary and user.expires_at and user.expires_at < datetime.now():
         return False, "临时账号已过期，不能重新启用"
 
     user.active = not user.active
     user.updated_at = datetime.now()
-    session.commit()
+    db_session.commit()
 
     status = "启用" if user.active else "禁用"
     return True, f"用户已{status}"
@@ -430,25 +482,24 @@ def change_password(username, old_password, new_password):
     Returns:
         tuple: (成功标志, 消息)
     """
-    session = get_session()
-    user = session.query(User).filter_by(username=username).first()
-    
+    db_session = get_session()
+    user = db_session.query(User).filter_by(username=username).first()
+
     if not user:
         return False, "用户不存在"
-    
+
     if not verify_password(old_password, user.password_hash):
         return False, "旧密码错误"
-    
+
     if len(new_password) < 6:
         return False, "新密码至少需要6个字符"
-    
+
     user.password_hash = hash_password(new_password)
     user.password_set_at = datetime.now()
-    # 设置密码有效期为90天
     user.password_expires_at = datetime.now() + timedelta(days=90)
     user.updated_at = datetime.now()
-    session.commit()
-    
+    db_session.commit()
+
     return True, "密码修改成功"
 
 def reset_password(username, new_password):
@@ -461,25 +512,23 @@ def reset_password(username, new_password):
     Returns:
         tuple: (成功标志, 消息)
     """
-    session = get_session()
-    user = session.query(User).filter_by(username=username).first()
-    
+    db_session = get_session()
+    user = db_session.query(User).filter_by(username=username).first()
+
     if not user:
         return False, "用户不存在"
-    
+
     if len(new_password) < 6:
         return False, "新密码至少需要6个字符"
-    
+
     user.password_hash = hash_password(new_password)
     user.password_set_at = datetime.now()
-    # 设置密码有效期为90天
     user.password_expires_at = datetime.now() + timedelta(days=90)
     user.updated_at = datetime.now()
-    session.commit()
-    
+    db_session.commit()
+
     return True, "密码重置成功"
 
-# 兼容旧函数名
 def init_users_file():
     """初始化用户数据文件（兼容旧函数）"""
     init_users()

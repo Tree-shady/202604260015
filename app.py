@@ -3,6 +3,8 @@ import os
 import sys
 import json
 import logging
+import uuid
+import imghdr
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -119,6 +121,21 @@ logging.basicConfig(
     format=app.config['LOG_FORMAT']
 )
 logger = logging.getLogger(__name__)
+
+# 会话超时配置
+SESSION_TIMEOUT = 1800  # 30分钟
+
+@app.before_request
+def check_session_timeout():
+    """检查会话是否超时"""
+    import time
+    if 'user_id' in session:
+        last_activity = session.get('last_activity')
+        if last_activity and time.time() - last_activity > SESSION_TIMEOUT:
+            session.clear()
+            flash('会话已超时，请重新登录', 'warning')
+            return redirect(url_for('login'))
+        session['last_activity'] = time.time()
 
 # 请求日志中间件
 @app.before_request
@@ -308,9 +325,17 @@ def login():
             flash('请输入用户名和密码', 'danger')
             return redirect(url_for('login'))
 
+        # 检查是否被锁定
+        from utils.auth import check_login_lockout, record_login_failure, clear_login_failure, get_remaining_attempts
+        if not check_login_lockout(username):
+            remaining = get_remaining_attempts(username)
+            flash(f'登录失败次数过多，请 {remaining//60+1} 分钟后再试', 'danger')
+            return redirect(url_for('login'))
+
         success, result = authenticate_user(username, password)
 
         if success:
+            clear_login_failure(username)
             session['user_id'] = result['id']
             session['username'] = result['username']
             session['role'] = result['role']
@@ -318,16 +343,16 @@ def login():
             session.permanent = True
             flash(f'欢迎回来，{result["username"]}！', 'success')
 
-            # 如果是管理员且有重定向URL，则跳转到那里
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
             return redirect(url_for('index'))
         else:
-            flash(result, 'danger')
+            record_login_failure(username)
+            remaining = get_remaining_attempts(username)
+            flash(f'{result} (剩余尝试次数: {remaining})', 'danger')
             return redirect(url_for('login'))
 
-    # 如果已经登录，直接跳转到首页
     if 'user_id' in session:
         return redirect(url_for('index'))
 
@@ -345,12 +370,12 @@ def register():
             flash('请输入用户名和密码', 'danger')
             return redirect(url_for('register'))
 
-        if len(username) < 3:
-            flash('用户名至少需要3个字符', 'danger')
+        if len(username) < 3 or len(username) > 50:
+            flash('用户名需要3-50个字符', 'danger')
             return redirect(url_for('register'))
 
-        if len(password) < 6:
-            flash('密码至少需要6个字符', 'danger')
+        if len(password) < 6 or len(password) > 128:
+            flash('密码需要6-128个字符', 'danger')
             return redirect(url_for('register'))
 
         if password != confirm_password:
@@ -751,10 +776,51 @@ def edit_entry(date_str):
                          current_mood=current_mood,
                          mood_note=mood_note)
 
+@app.route('/delete/<date_str>', methods=['GET'])
+@login_required
+def delete_entry_confirm(date_str):
+    """显示删除确认页面"""
+    if not validate_date_str(date_str):
+        flash('无效的日期格式', 'danger')
+        return redirect(url_for('index'))
+    
+    db_session = get_session()
+    current_user_id = session.get('user_id')
+    entry = db_session.query(Entry).filter_by(user_id=current_user_id, date_str=date_str).first()
+    
+    if not entry:
+        flash('未找到该日记', 'danger')
+        return redirect(url_for('index'))
+    
+    # 获取日记信息用于显示
+    timestamp = entry.timestamp.strftime('%Y-%m-%d %H:%M') if entry.timestamp else ''
+    content = entry.content[:200] if entry.content else ''
+    
+    # 获取心情
+    mood_info = None
+    mood_note = ''
+    if entry.mood:
+        mood_info = entry.mood.mood_type
+    
+    # 获取标签
+    tags = [t.name for t in entry.tags]
+    
+    # 心情信息
+    mood_emoji = {'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'}
+    mood_label = {'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'}
+    
+    return render_template('confirm_delete.html', 
+                         date_str=date_str,
+                         timestamp=timestamp,
+                         content=content,
+                         mood_info={'emoji': mood_emoji.get(mood_info, '😐'), 'label': mood_label.get(mood_info, '一般')},
+                         mood_note=mood_note,
+                         tags=tags)
+
 @app.route('/delete/<date_str>', methods=['POST'])
 @login_required
 def delete_entry(date_str):
-    # 验证日期字符串
+    """执行删除操作"""
     if not validate_date_str(date_str):
         flash('无效的日期格式', 'danger')
         return redirect(url_for('index'))
@@ -876,25 +942,22 @@ def serve_image(filename):
 def upload_image():
     """上传图片"""
     if 'image' not in request.files:
-        flash('请选择图片文件', 'danger')
-        return redirect(request.referrer or url_for('index'))
+        return {'success': False, 'message': '请选择图片文件'}, 400
     
     image = request.files['image']
     if image.filename == '':
-        flash('请选择图片文件', 'danger')
-        return redirect(request.referrer or url_for('index'))
+        return {'success': False, 'message': '请选择图片文件'}, 400
     
     # 验证文件类型
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-    if '.' not in image.filename or image.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
-        flash('只支持 PNG、JPG、JPEG、GIF、WebP 格式的图片', 'danger')
-        return redirect(request.referrer or url_for('index'))
+    ext = image.filename.rsplit('.', 1)[-1].lower() if '.' in image.filename else ''
+    if ext not in allowed_extensions:
+        return {'success': False, 'message': '只支持 PNG、JPG、JPEG、GIF、WebP 格式'}, 400
     
     # 获取日期参数
     date_str = request.form.get('date', datetime.now().strftime(DATE_FORMAT))
     if not validate_date_str(date_str):
-        flash('无效的日期格式', 'danger')
-        return redirect(request.referrer or url_for('index'))
+        return {'success': False, 'message': '无效的日期格式'}, 400
     
     # 保存图片
     try:
@@ -902,27 +965,26 @@ def upload_image():
         date_dir = IMAGES_DIR / date_str
         date_dir.mkdir(exist_ok=True)
         
-        # 生成唯一文件名
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"{timestamp}_{image.filename}"
+        # 生成唯一文件名 (使用UUID避免冲突)
+        ext = image.filename.rsplit('.', 1)[-1].lower()
+        filename = f"{uuid.uuid4().hex}.{ext}"
         filepath = date_dir / filename
         
         # 保存图片
         image.save(filepath)
         
+        # 验证文件是否为真实的图片 (Magic Number检查)
+        if not imghdr.what(filepath):
+            os.remove(filepath)
+            return {'success': False, 'message': '文件不是有效的图片'}, 400
+        
         # 返回图片路径
         image_url = f"/images/{date_str}/{filename}"
+        return {'success': True, 'url': image_url}
         
-        # 如果是 AJAX 请求，返回 JSON 响应
-        if request.is_xhr or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return {'success': True, 'url': image_url}
-        
-        flash('图片上传成功', 'success')
-        return redirect(request.referrer or url_for('index'))
     except Exception as e:
         logger.error(f"图片上传失败: {e}")
-        flash('图片上传失败', 'danger')
-        return redirect(request.referrer or url_for('index'))
+        return {'success': False, 'message': '图片上传失败'}, 500
 
 # 导入/导出相关路由
 @app.route('/import-export')
