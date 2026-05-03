@@ -4,11 +4,39 @@ import sys
 import json
 import logging
 import uuid
-import imghdr
 import calendar
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Magic bytes for image validation
+IMAGE_MAGIC = {
+    'jpeg': [b'\xff\xd8\xff'],
+    'png': [b'\x89PNG'],
+    'gif': [b'GIF87a', b'GIF89a'],
+    'webp': [b'RIFF'],
+}
+
+def validate_image_magic(filepath):
+    """Validate image by checking magic bytes"""
+    try:
+        with open(filepath, 'rb') as f:
+            header = f.read(16)
+        for img_type, magics in IMAGE_MAGIC.items():
+            for magic in magics:
+                if header.startswith(magic):
+                    if img_type == 'jpeg':
+                        return 'jpeg'
+                    elif img_type == 'png':
+                        return 'png'
+                    elif img_type == 'gif':
+                        return 'gif'
+                    elif img_type == 'webp':
+                        if b'WEBP' in header[:12]:
+                            return 'webp'
+        return None
+    except:
+        return None
 
 load_dotenv()
 
@@ -163,8 +191,8 @@ def teardown_request(exception):
 
 # 安全工具函数
 def get_tags():
-    session = get_session()
-    tags = session.query(Tag).all()
+    db_session = get_session()
+    tags = db_session.query(Tag).all()
     return {tag.name: [entry.date_str for entry in tag.entries] for tag in tags}
 
 def save_tags(tags):
@@ -191,8 +219,8 @@ def handle_exception(error):
     return redirect(url_for('index'))
 
 def get_entries():
-    session = get_session()
-    entries = session.query(Entry).order_by(Entry.date_str.desc()).all()
+    db_session = get_session()
+    entries = db_session.query(Entry).order_by(Entry.date_str.desc()).all()
     # 返回模拟的文件路径对象，保持向后兼容
     class MockPath:
         def __init__(self, date_str):
@@ -201,8 +229,8 @@ def get_entries():
     return [MockPath(entry.date_str) for entry in entries]
 
 def get_entry_content(date_str):
-    session = get_session()
-    entry = session.query(Entry).filter_by(date_str=date_str).first()
+    db_session = get_session()
+    entry = db_session.query(Entry).filter_by(date_str=date_str).first()
     if entry:
         timestamp = f"[{entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')}]"
         tags = [tag.name for tag in entry.tags]
@@ -246,8 +274,8 @@ def get_calendar_data(year, month):
     current_day = today.day
 
     # 从数据库中获取所有日记日期
-    session = get_session()
-    all_entries = session.query(Entry.date_str).all()
+    db_session = get_session()
+    all_entries = db_session.query(Entry.date_str).all()
     entry_dates = set([entry.date_str for entry in all_entries])
 
     for day in range(1, days_in_month + 1):
@@ -282,30 +310,15 @@ def get_calendar_data(year, month):
 
 def get_stats():
     """获取统计数据"""
-    from utils.models import get_session, Entry
-    session = get_session()
-    entries = session.query(Entry).all()
+    db_session = get_session()
+    entries = db_session.query(Entry).all()
     total_entries = len(entries)
 
-    # 计算总字数
-    total_words = 0
-    total_chars = 0
+    total_words = sum(len(e.content.split()) for e in entries)
+    total_chars = sum(len(e.content) for e in entries)
 
-    for entry in entries:
-        content = entry.content
-        lines = content.split('\n')
-        # 移除时间戳和标签行
-        if lines and lines[0].startswith("[") and "]" in lines[0]:
-            lines = lines[1:]
-        if lines and lines[0].startswith("Tags: "):
-            lines = lines[1:]
-        content = '\n'.join(lines)
-        total_chars += len(content)
-        total_words += len(content.split())
-
-    # 获取标签统计
-    tag_data = get_tags()
-    total_tags = len(tag_data)
+    tags = db_session.query(Tag).all()
+    total_tags = len(tags)
 
     return {
         'total_entries': total_entries,
@@ -446,12 +459,13 @@ def index(year=None, month=None):
         year = today.year
         month = today.month
 
-    entries = get_entries()
+    db_session = get_session()
+    current_user_id = session.get('user_id')
+    entries = db_session.query(Entry).filter_by(user_id=current_user_id).order_by(Entry.date_str.desc()).limit(5).all()
     tag_data = get_tags()
     calendar_data = get_calendar_data(year, month)
     stats = get_stats()
 
-    # 计算上一个月和下一个月
     prev_month = month - 1
     prev_year = year
     if prev_month < 1:
@@ -464,6 +478,12 @@ def index(year=None, month=None):
         next_month = 1
         next_year += 1
 
+    mood_stats = {}
+    for entry in db_session.query(Entry).filter_by(user_id=current_user_id).all():
+        if entry.mood:
+            mt = entry.mood.mood_type
+            mood_stats[mt] = mood_stats.get(mt, 0) + 1
+
     return render_template('index.html',
                          entries=entries,
                          tags=tag_data,
@@ -475,7 +495,7 @@ def index(year=None, month=None):
                          next_year=next_year,
                          next_month=next_month,
                          stats=stats,
-                         mood_stats={},
+                         mood_stats=mood_stats,
                          mood_emoji={'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'},
                          mood_labels={'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'})
 
@@ -1061,7 +1081,7 @@ def upload_image():
         image.save(filepath)
         
         # 验证文件是否为真实的图片 (Magic Number检查)
-        if not imghdr.what(filepath):
+        if not validate_image_magic(filepath):
             os.remove(filepath)
             return {'success': False, 'message': '文件不是有效的图片'}, 400
         
