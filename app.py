@@ -865,72 +865,155 @@ def view_tag(tag):
 @login_required
 def search():
     """搜索日记"""
+    db_session = get_session()
+    current_user_id = session.get('user_id')
+    
+    # 获取所有标签用于筛选下拉框
+    all_tags = [t.name for t in db_session.query(Tag).all()]
+    
     if request.method == 'POST':
         keyword = request.form.get('keyword', '').strip()
-        if not keyword:
-            flash('搜索关键词不能为空', 'warning')
-            return redirect(url_for('search'))
+        start_date = request.form.get('start_date', '').strip()
+        end_date = request.form.get('end_date', '').strip()
+        selected_moods = request.form.getlist('moods')
+        selected_tag = request.form.get('tag', '').strip()
         
-        # 搜索日记
+        # 构建查询
+        query = db_session.query(Entry).filter_by(user_id=current_user_id)
+        
+        # 日期范围筛选
+        if start_date:
+            query = query.filter(Entry.date_str >= start_date)
+        if end_date:
+            query = query.filter(Entry.date_str <= end_date)
+        
+        # 关键词筛选
+        if keyword:
+            query = query.filter(Entry.content.ilike(f'%{keyword}%'))
+        
+        # 标签筛选 (优化：先获取标签对象，避免全表join)
+        if selected_tag:
+            tag_obj = db_session.query(Tag).filter_by(name=selected_tag).first()
+            if tag_obj:
+                query = query.filter(Entry.tags.contains(tag_obj))
+        
+        # 心情筛选
+        if selected_moods:
+            query = query.join(Entry.mood).filter(Mood.mood_type.in_(selected_moods))
+        
+        entries = query.order_by(Entry.date_str.desc()).all()
+        
+        # 构建结果
         results = []
-        entries = get_entries()
-        
         for entry in entries:
-            date_str = entry.stem
-            timestamp, tags, content = get_entry_content(date_str)
-            
-            # 搜索内容和标签
-            if keyword.lower() in content.lower() or any(keyword.lower() in tag.lower() for tag in tags):
-                results.append({
-                    'date_str': date_str,
-                    'content': content[:100] + '...' if len(content) > 100 else content,
-                    'tags': tags,
-                    'size': entry.stat().st_size
-                })
+            content_preview = entry.content[:100] + '...' if len(entry.content) > 100 else entry.content
+            results.append({
+                'date_str': entry.date_str,
+                'content': content_preview,
+                'tags': [t.name for t in entry.tags],
+                'mood': entry.mood.mood_type if entry.mood else None,
+                'size': len(entry.content)
+            })
         
-        return render_template('search.html', keyword=keyword, results=results)
+        return render_template('search.html', 
+                             keyword=keyword,
+                             start_date=start_date,
+                             end_date=end_date,
+                             selected_moods=selected_moods,
+                             selected_tag=selected_tag,
+                             all_tags=all_tags,
+                             results=results)
     
-    return render_template('search.html')
+    return render_template('search.html', all_tags=all_tags, results=[])
 
 @app.route('/stats')
 @login_required
 def stats():
     """统计页面"""
-    stats_data = get_stats()
+    db_session = get_session()
+    current_user_id = session.get('user_id')
     
-    # 获取标签使用频率
-    tag_data = get_tags()
-    tag_stats = []
-    for tag, dates in tag_data.items():
-        tag_stats.append({
-            'tag': tag,
-            'count': len(dates)
-        })
+    # 获取用户的所有日记
+    entries = db_session.query(Entry).filter_by(user_id=current_user_id).all()
+    total_entries = len(entries)
+    
+    # 计算总字数
+    total_chars = sum(len(e.content) for e in entries)
+    total_words = sum(len(e.content.split()) for e in entries)
+    
+    # 获取标签统计
+    all_tags = db_session.query(Tag).all()
+    tag_stats = [{'tag': t.name, 'count': len([e for e in t.entries if e.user_id == current_user_id])} for t in all_tags]
     tag_stats.sort(key=lambda x: x['count'], reverse=True)
+    total_tags = len(all_tags)
     
     # 获取每月日记数量
     monthly_stats = {}
-    entries = get_entries()
     for entry in entries:
-        date_str = entry.stem
-        year_month = date_str[:7]  # YYYY-MM
+        year_month = entry.date_str[:7]
         if year_month not in monthly_stats:
             monthly_stats[year_month] = 0
         monthly_stats[year_month] += 1
     
-    # 转换为列表并排序
-    monthly_stats_list = []
-    for year_month, count in monthly_stats.items():
-        monthly_stats_list.append({
-            'month': year_month,
-            'count': count
-        })
+    monthly_stats_list = [{'month': k, 'count': v} for k, v in monthly_stats.items()]
     monthly_stats_list.sort(key=lambda x: x['month'])
+    
+    # 获取心情统计
+    mood_stats = {'happy': 0, 'excited': 0, 'calm': 0, 'tired': 0, 'sad': 0, 'angry': 0, 'anxious': 0, 'neutral': 0}
+    mood_labels = {'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'}
+    mood_emoji = {'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'}
+    
+    for entry in entries:
+        if entry.mood:
+            mood_stats[entry.mood.mood_type] = mood_stats.get(entry.mood.mood_type, 0) + 1
+    
+    # 获取最近30天的心情数据（用于图表）(优化：使用数据库查询)
+    mood_trend = []
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
+    
+    # 批量查询最近30天的日记（优化：一次性查询）
+    date_range_start = (today - timedelta(days=29)).strftime('%Y-%m-%d')
+    recent_entries = db_session.query(Entry).filter(
+        Entry.user_id == current_user_id,
+        Entry.date_str >= date_range_start
+    ).all()
+    
+    # 构建日期到日记的映射
+    entries_by_date = {e.date_str: e for e in recent_entries}
+    
+    for i in range(29, -1, -1):
+        day = today - timedelta(days=i)
+        day_str = day.strftime('%Y-%m-%d')
+        entry = entries_by_date.get(day_str)
+        if entry and entry.mood:
+            mood_trend.append({
+                'date': day_str,
+                'mood': entry.mood.mood_type,
+                'emoji': mood_emoji.get(entry.mood.mood_type, '😐'),
+                'label': mood_labels.get(entry.mood.mood_type, '一般')
+            })
+        else:
+            mood_trend.append({
+                'date': day_str,
+                'mood': None,
+                'emoji': '',
+                'label': '无记录'
+            })
+    
+    stats_data = {
+        'total_entries': total_entries,
+        'total_words': total_words,
+        'total_chars': total_chars,
+        'total_tags': total_tags
+    }
     
     return render_template('stats.html', 
                          stats=stats_data,
-                         tag_stats=tag_stats,
-                         monthly_stats=monthly_stats_list)
+                         tag_stats=tag_stats[:10],
+                         monthly_stats=monthly_stats_list,
+                         mood_stats=mood_stats,
+                         mood_trend=mood_trend)
 
 # 图片相关路由
 @app.route('/images/<path:filename>')

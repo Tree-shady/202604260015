@@ -2,25 +2,96 @@
 
 {% block content %}
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
                 <div class="card-header">
                     <h2><i class="bi bi-search"></i> 搜索日记</h2>
                 </div>
                 <div class="card-body">
-                    <form method="POST" class="mb-4">
-                        <div class="input-group">
-                            <input type="text" class="form-control" name="keyword" placeholder="输入搜索关键词..." value="{{ keyword }}" required>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-search"></i> 搜索
-                            </button>
+                    <form method="POST" class="mb-4" id="searchForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="keyword" class="form-label">关键词</label>
+                                <input type="text" class="form-control" name="keyword" placeholder="输入搜索关键词..." value="{{ keyword | e }}" id="keywordInput">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="start_date" class="form-label">开始日期</label>
+                                <input type="date" class="form-control" name="start_date" value="{{ start_date }}" id="startDateInput">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="end_date" class="form-label">结束日期</label>
+                                <input type="date" class="form-control" name="end_date" value="{{ end_date }}" id="endDateInput">
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-6">
+                                <label class="form-label">心情筛选</label>
+                                <div class="d-flex flex-wrap gap-2">
+                                    {% set moods = {
+                                        'happy': '😊',
+                                        'excited': '🤩',
+                                        'calm': '😌',
+                                        'tired': '😴',
+                                        'sad': '😢',
+                                        'angry': '😠',
+                                        'anxious': '😰',
+                                        'neutral': '😐'
+                                    } %}
+                                    {% for mood, emoji in moods.items() %}
+                                        <label class="btn btn-outline-primary btn-sm mood-filter" data-mood="{{ mood }}">
+                                            <input type="checkbox" name="moods" value="{{ mood }}" class="d-none" {% if mood in selected_moods %}checked{% endif %}>
+                                            {{ emoji }}
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="tag_filter" class="form-label">标签筛选</label>
+                                <select class="form-select" name="tag" id="tagFilter">
+                                    <option value="">全部标签</option>
+                                    {% for tag in all_tags %}
+                                        <option value="{{ tag | e }}" {% if tag == selected_tag %}selected{% endif %}>{{ tag | e }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="d-flex gap-2 w-100">
+                                    <button type="submit" class="btn btn-primary flex-grow-1">
+                                        <i class="bi bi-search"></i> 搜索
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </form>
 
-                    {% if keyword %}
+                    {% if keyword or start_date or end_date or selected_moods or selected_tag %}
                         <div class="mb-4">
-                            <h5>搜索结果: "{{ keyword }}"</h5>
-                            <p class="text-muted">共找到 {{ results|length }} 篇日记</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5>
+                                        {% if keyword %}
+                                            搜索结果: "{{ keyword | e }}"
+                                        {% else %}
+                                            筛选结果
+                                        {% endif %}
+                                    </h5>
+                                    <p class="text-muted mb-0">共找到 {{ results|length }} 篇日记</p>
+                                </div>
+                                <div class="text-muted small">
+                                    {% if start_date and end_date %}
+                                        日期范围: {{ start_date }} 至 {{ end_date }}
+                                    {% endif %}
+                                    {% if selected_moods %}
+                                        | 心情: {% for m in selected_moods %}{{ moods.get(m, m) }}{% endfor %}
+                                    {% endif %}
+                                    {% if selected_tag %}
+                                        | 标签: {{ selected_tag | e }}
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
 
                         {% if results %}
@@ -28,14 +99,22 @@
                                 {% for result in results %}
                                     <a href="{{ url_for('view_entry', date_str=result.date_str) }}" class="list-group-item list-group-item-action">
                                         <div class="d-flex justify-content-between">
-                                            <h6 class="mb-1"><i class="bi bi-calendar3 text-primary me-2"></i>{{ result.date_str }}</h6>
-                                            <span class="text-muted small">{{ result.size }} 字节</span>
+                                            <h6 class="mb-1">
+                                                <i class="bi bi-calendar3 text-primary me-2"></i>
+                                                {{ result.date_str }}
+                                            </h6>
+                                            <div class="d-flex align-items-center gap-2">
+                                                {% if result.mood %}
+                                                    <span class="fs-5">{{ moods.get(result.mood, '😐') }}</span>
+                                                {% endif %}
+                                                <span class="text-muted small">{{ result.size }} 字</span>
+                                            </div>
                                         </div>
-                                        <p class="mb-2 text-muted">{{ result.content }}</p>
+                                        <p class="mb-2 text-muted {% if keyword %}highlight{% endif %}">{{ result.content }}</p>
                                         {% if result.tags %}
                                             <div class="d-flex flex-wrap gap-1">
                                                 {% for tag in result.tags %}
-                                                    <span class="badge bg-primary text-white">{{ tag }}</span>
+                                                    <span class="badge bg-primary text-white">{{ tag | e }}</span>
                                                 {% endfor %}
                                             </div>
                                         {% endif %}
@@ -45,12 +124,77 @@
                         {% else %}
                             <div class="text-center py-5">
                                 <i class="bi bi-search" style="font-size: 4rem; color: #ccc;"></i>
-                                <p class="text-muted mt-3">未找到相关日记</p>
+                                <p class="text-muted mt-3">未找到符合筛选条件的日记</p>
                             </div>
                         {% endif %}
+                    {% else %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-search" style="font-size: 4rem;"></i>
+                            <p class="mt-3">输入关键词或选择筛选条件开始搜索</p>
+                        </div>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        const moods = {
+            'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴',
+            'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'
+        };
+
+        document.querySelectorAll('.mood-filter').forEach(label => {
+            label.addEventListener('click', function() {
+                const checkbox = this.querySelector('input');
+                checkbox.checked = !checkbox.checked;
+                this.classList.toggle('active', checkbox.checked);
+                this.classList.toggle('btn-primary', checkbox.checked);
+                this.classList.toggle('btn-outline-primary', !checkbox.checked);
+            });
+        });
+
+        function clearFilters() {
+            document.getElementById('keywordInput').value = '';
+            document.getElementById('startDateInput').value = '';
+            document.getElementById('endDateInput').value = '';
+            document.getElementById('tagFilter').value = '';
+            document.querySelectorAll('.mood-filter input').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.mood-filter').forEach(label => {
+                label.classList.remove('active', 'btn-primary');
+                label.classList.add('btn-outline-primary');
+            });
+        }
+
+        // Highlight search keywords (XSS安全版本)
+        document.querySelectorAll('.highlight').forEach(el => {
+            const keyword = "{{ keyword | e }}";
+            if (keyword) {
+                const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`(${escapedKeyword})`, 'gi');
+                const text = el.textContent;
+                if (regex.test(text)) {
+                    const highlighted = text.replace(regex, '<mark class="bg-warning search-highlight">$1</mark>');
+                    el.innerHTML = highlighted;
+                }
+            }
+        });
+    </script>
+
+    <style>
+        .mood-filter.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .list-group-item .highlight {
+            background-color: #fff3cd;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .search-highlight {
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+    </style>
 {% endblock %}

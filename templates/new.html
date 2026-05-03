@@ -2,13 +2,16 @@
 
 {% block content %}
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h2><i class="bi bi-pencil-square"></i> 写日记</h2>
+                    <div class="text-muted small">
+                        <kbd>Ctrl</kbd>+<kbd>S</kbd> 保存 | <kbd>Ctrl</kbd>+<kbd>B</kbd> 加粗 | <kbd>Ctrl</kbd>+<kbd>I</kbd> 斜体
+                    </div>
                 </div>
                 <div class="card-body">
-                    <form method="POST">
+                    <form method="POST" id="diaryForm">
                         <div class="row mb-3">
                             <div class="col-md-4">
                                 <label for="date" class="form-label">
@@ -33,7 +36,7 @@
                                         'neutral': '😐 一般'
                                     } %}
                                     {% for mood_type, mood_label in moods.items() %}
-                                        <label class="btn btn-outline-primary">
+                                        <label class="btn btn-outline-primary {% if loop.first %}active{% endif %}">
                                             <input type="radio" name="mood" value="{{ mood_type }}" class="d-none" {% if loop.first %}checked{% endif %}>
                                             {{ mood_label }}
                                         </label>
@@ -76,20 +79,21 @@
                             </div>
                         </div>
                         <div class="mb-4">
-                            <div class="d-flex justify-content-between mb-2">
-                                <label for="content" class="form-label">
-                                    <i class="bi bi-file-text text-primary me-1"></i>内容
-                                </label>
+                            <label for="content" class="form-label">
+                                <i class="bi bi-file-text text-primary me-1"></i>内容
+                            </label>
+                            <div id="editor-container"></div>
+                            <input type="hidden" name="content" id="content" value="">
+                            <div class="editor-footer">
+                                <span id="wordCount">0 字</span>
                                 <div class="d-flex gap-2">
-                                    <span class="text-muted small" id="wordCount">0 字</span>
-                                    <button type="button" class="btn btn-secondary" id="uploadImageBtn">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="uploadImageBtn">
                                         <i class="bi bi-image"></i> 插入图片
                                     </button>
                                 </div>
                             </div>
-                            <textarea class="form-control" id="content" name="content" rows="12" placeholder="今天发生了什么..." required></textarea>
                         </div>
-                        
+
                         <!-- 模板预览模态框 -->
                         <div class="modal fade" id="templatePreviewModal" tabindex="-1" aria-labelledby="templatePreviewModalLabel" aria-hidden="true">
                             <div class="modal-dialog modal-lg">
@@ -99,7 +103,7 @@
                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                     </div>
                                     <div class="modal-body">
-                                        <div id="templatePreviewContent" class="bg-light p-4 rounded"></div>
+                                        <div id="templatePreviewContent" class="bg-light p-4 rounded" style="white-space: pre-wrap; font-family: inherit;"></div>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -108,7 +112,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-lg"></i> 保存
@@ -122,8 +126,8 @@
             </div>
         </div>
     </div>
-    
-    <!-- 图片上传模态框 (移到主表单外部) -->
+
+    <!-- 图片上传模态框 -->
     <div class="modal fade" id="imageUploadModal" tabindex="-1" aria-labelledby="imageUploadModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -132,7 +136,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="imageUploadForm" action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
+                    <form id="imageUploadForm" enctype="multipart/form-data">
                         <input type="hidden" name="date" value="{{ current_date }}">
                         <div class="mb-3">
                             <label for="image" class="form-label">选择图片</label>
@@ -150,107 +154,97 @@
             </div>
         </div>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // 表单提交监听
-            const mainForm = document.querySelector('form[method="POST"]');
-            if (mainForm) {
-                mainForm.addEventListener('submit', function(event) {
-                    console.log('表单提交中...');
-                    console.log('日期值:', document.getElementById('date').value);
-                    console.log('内容值:', document.getElementById('content').value);
-                    console.log('表单数据:', new FormData(mainForm));
-                    return true; // 继续提交
-                });
-            }
-            
-            // 图片上传按钮
+            // Initialize Quill editor
+            const quill = new Quill('#editor-container', {
+                theme: 'snow',
+                placeholder: '今天发生了什么...',
+                modules: {
+                    toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['blockquote', 'code-block'],
+                        ['link', 'image'],
+                        ['clean']
+                    ]
+                }
+            });
+
+            // Elements
+            const contentInput = document.getElementById('content');
+            const wordCountElement = document.getElementById('wordCount');
+            const diaryForm = document.getElementById('diaryForm');
+            const templateSelect = document.getElementById('template');
             const uploadImageBtn = document.getElementById('uploadImageBtn');
             const imageUploadModal = new bootstrap.Modal(document.getElementById('imageUploadModal'));
-            const imageUploadForm = document.getElementById('imageUploadForm');
-            const submitImageUpload = document.getElementById('submitImageUpload');
-            const contentTextarea = document.getElementById('content');
-            const wordCountElement = document.getElementById('wordCount');
-            
-            // 字数统计函数
+
+            // Update word count
             function updateWordCount() {
-                const content = contentTextarea.value;
-                const wordCount = content.length;
-                wordCountElement.textContent = `${wordCount} 字`;
+                const text = quill.getText();
+                const charCount = text.trim().length;
+                wordCountElement.textContent = `${charCount} 字`;
             }
-            
-            // 初始统计
+
+            quill.on('text-change', updateWordCount);
             updateWordCount();
-            
-            // 实时统计
-            contentTextarea.addEventListener('input', updateWordCount);
-            
-            // 模板相关
-            const templateSelect = document.getElementById('template');
-            const previewTemplateBtn = document.getElementById('previewTemplateBtn');
-            const templatePreviewModal = new bootstrap.Modal(document.getElementById('templatePreviewModal'));
-            const templatePreviewContent = document.getElementById('templatePreviewContent');
-            const useTemplateBtn = document.getElementById('useTemplateBtn');
-            let currentTemplate = '';
-            
-            // 模板预览
-            previewTemplateBtn.addEventListener('click', function() {
+
+            // Form submit - sync Quill content to hidden input
+            diaryForm.addEventListener('submit', function() {
+                contentInput.value = quill.root.innerHTML;
+            });
+
+            // Template system
+            const templates = {
+                'daily': '<h2>今日记录</h2><h3>今日心情</h3><p>心情描述...</p><h3>今日事件</h3><ul><li>事件1</li><li>事件2</li><li>事件3</li></ul><h3>今日感悟</h3><p>感悟内容...</p><h3>明日计划</h3><ul><li>计划1</li><li>计划2</li></ul>',
+                'work': '<h2>工作日志</h2><h3>今日任务</h3><ul><li><input type="checkbox"> 任务1</li><li><input type="checkbox"> 任务2</li><li><input type="checkbox"> 任务3</li></ul><h3>完成情况</h3><ul><li><input type="checkbox" checked> 已完成1</li><li><input type="checkbox" checked> 已完成2</li></ul><h3>遇到的问题</h3><p>问题描述...</p><h3>解决方法</h3><p>解决方法...</p>',
+                'study': '<h2>学习笔记</h2><h3>学习内容</h3><p>内容描述...</p><h3>重点难点</h3><ul><li>重点1</li><li>重点2</li></ul><h3>学习收获</h3><p>收获内容...</p><h3>疑问和思考</h3><p>疑问内容...</p>',
+                'travel': '<h2>旅行日记</h2><h3>日期和地点</h3><p>地点...</p><h3>今日行程</h3><ul><li>行程1</li><li>行程2</li><li>行程3</li></ul><h3>所见所闻</h3><p>所见所闻...</p><h3>美食推荐</h3><p>美食...</p><h3>心情感受</h3><p>感受...</p>',
+                'health': '<h2>健康日记</h2><h3>今日身体状况</h3><ul><li>体重: </li><li>血压: </li><li>睡眠: </li></ul><h3>今日运动</h3><ul><li>类型: </li><li>时长: </li><li>强度: </li></ul><h3>今日饮食</h3><ul><li>早餐: </li><li>午餐: </li><li>晚餐: </li></ul><h3>今日感受</h3><p>感受...</p>',
+                'gratitude': '<h2>感恩日记</h2><h3>今日感恩</h3><ol><li>感恩1</li><li>感恩2</li><li>感恩3</li></ol><h3>今日收获</h3><p>收获...</p><h3>今日成长</h3><p>成长...</p><h3>明日期待</h3><p>期待...</p>',
+                'dream': '<h2>梦境记录</h2><h3>日期</h3><p>{{ date }}</p><h3>梦境内容</h3><p>梦境...</p><h3>梦中感受</h3><p>感受...</p><h3>醒后思考</h3><p>思考...</p><h3>可能的含义</h3><p>含义...</p>',
+                'project': '<h2>项目计划</h2><h3>项目名称</h3><p>名称...</p><h3>当前进展</h3><p>进展...</p><h3>下一步计划</h3><ul><li>计划1</li><li>计划2</li></ul><h3>遇到的问题</h3><p>问题...</p><h3>解决方案</h3><p>方案...</p><h3>时间节点</h3><p>时间...</p>'
+            };
+
+            // Preview template
+            document.getElementById('previewTemplateBtn').addEventListener('click', function() {
                 const templateId = templateSelect.value;
                 if (!templateId) {
                     alert('请选择一个模板');
                     return;
                 }
-                
-                currentTemplate = templateId;
-                
-                // 模板内容
-                const templates = {
-                    'daily': `# 今日记录\n\n## 今日心情\n\n## 今日事件\n- \n- \n- \n\n## 今日感悟\n\n## 明日计划\n- \n- \n- \n`,
-                    'work': `# 工作日志\n\n## 今日任务\n- [ ] \n- [ ] \n- [ ] \n\n## 完成情况\n- [x] \n- [x] \n- [x] \n\n## 遇到的问题\n\n## 解决方法\n\n## 明日计划\n- \n- \n- \n`,
-                    'study': `# 学习笔记\n\n## 学习内容\n\n## 重点难点\n\n## 学习收获\n\n## 疑问和思考\n\n## 下一步计划\n`,
-                    'travel': `# 旅行日记\n\n## 日期和地点\n\n## 今日行程\n- \n- \n- \n\n## 所见所闻\n\n## 美食推荐\n\n## 心情感受\n\n## 明日安排\n`,
-                    'health': `# 健康日记\n\n## 今日身体状况\n- 体重: \n- 血压: \n- 睡眠: \n\n## 今日运动\n- 类型: \n- 时长: \n- 强度: \n\n## 今日饮食\n- 早餐: \n- 午餐: \n- 晚餐: \n\n## 今日感受\n\n## 健康目标\n`,
-                    'gratitude': `# 感恩日记\n\n## 今日感恩\n1. \n2. \n3. \n\n## 今日收获\n\n## 今日成长\n\n## 明日期待\n`,
-                    'dream': `# 梦境记录\n\n## 日期\n{{ date }}\n\n## 梦境内容\n\n## 梦中感受\n\n## 醒后思考\n\n## 可能的含义\n`,
-                    'project': `# 项目计划\n\n## 项目名称\n\n## 当前进展\n\n## 下一步计划\n- \n- \n- \n\n## 遇到的问题\n\n## 解决方案\n\n## 时间节点\n`
-                };
-                
-                const templateContent = templates[templateId].replace('{{ date }}', document.getElementById('date').value);
-                templatePreviewContent.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit; background: none; border: none; padding: 0;">${templateContent}</pre>`;
-                templatePreviewModal.show();
+                let content = templates[templateId].replace('{{ date }}', document.getElementById('date').value);
+                document.getElementById('templatePreviewContent').innerHTML = content;
+                new bootstrap.Modal(document.getElementById('templatePreviewModal')).show();
             });
-            
-            // 使用模板
-            useTemplateBtn.addEventListener('click', function() {
-                if (!currentTemplate) return;
-                
-                const templates = {
-                    'daily': `# 今日记录\n\n## 今日心情\n\n## 今日事件\n- \n- \n- \n\n## 今日感悟\n\n## 明日计划\n- \n- \n- \n`,
-                    'work': `# 工作日志\n\n## 今日任务\n- [ ] \n- [ ] \n- [ ] \n\n## 完成情况\n- [x] \n- [x] \n- [x] \n\n## 遇到的问题\n\n## 解决方法\n\n## 明日计划\n- \n- \n- \n`,
-                    'study': `# 学习笔记\n\n## 学习内容\n\n## 重点难点\n\n## 学习收获\n\n## 疑问和思考\n\n## 下一步计划\n`,
-                    'travel': `# 旅行日记\n\n## 日期和地点\n\n## 今日行程\n- \n- \n- \n\n## 所见所闻\n\n## 美食推荐\n\n## 心情感受\n\n## 明日安排\n`,
-                    'health': `# 健康日记\n\n## 今日身体状况\n- 体重: \n- 血压: \n- 睡眠: \n\n## 今日运动\n- 类型: \n- 时长: \n- 强度: \n\n## 今日饮食\n- 早餐: \n- 午餐: \n- 晚餐: \n\n## 今日感受\n\n## 健康目标\n`,
-                    'gratitude': `# 感恩日记\n\n## 今日感恩\n1. \n2. \n3. \n\n## 今日收获\n\n## 今日成长\n\n## 明日期待\n`,
-                    'dream': `# 梦境记录\n\n## 日期\n{{ date }}\n\n## 梦境内容\n\n## 梦中感受\n\n## 醒后思考\n\n## 可能的含义\n`,
-                    'project': `# 项目计划\n\n## 项目名称\n\n## 当前进展\n\n## 下一步计划\n- \n- \n- \n\n## 遇到的问题\n\n## 解决方案\n\n## 时间节点\n`
-                };
-                
-                const templateContent = templates[currentTemplate].replace('{{ date }}', document.getElementById('date').value);
-                contentTextarea.value = templateContent;
-                updateWordCount(); // 更新字数统计
-                templatePreviewModal.hide();
+
+            // Use template
+            document.getElementById('useTemplateBtn').addEventListener('click', function() {
+                const templateId = templateSelect.value;
+                if (!templateId) return;
+                let content = templates[templateId].replace('{{ date }}', document.getElementById('date').value);
+                quill.clipboard.dangerouslyPasteHTML(content);
+                bootstrap.Modal.getInstance(document.getElementById('templatePreviewModal')).hide();
             });
-            
-            // 打开图片上传模态框
+
+            // Image upload
             uploadImageBtn.addEventListener('click', function() {
                 imageUploadModal.show();
             });
-            
-            // 提交图片上传
-            submitImageUpload.addEventListener('click', function() {
-                const formData = new FormData(imageUploadForm);
-                
+
+            document.getElementById('submitImageUpload').addEventListener('click', function() {
+                const fileInput = document.getElementById('image');
+                if (!fileInput.files[0]) {
+                    alert('请选择图片');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                formData.append('date', document.getElementById('date').value);
+
                 fetch("{{ url_for('upload_image') }}", {
                     method: 'POST',
                     body: formData
@@ -258,31 +252,44 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // 插入图片到文本框
-                        const imageUrl = data.url;
-                        const imageMarkdown = `![图片](${imageUrl})\n\n`;
-                        
-                        // 获取当前光标位置
-                        const start = contentTextarea.selectionStart;
-                        const end = contentTextarea.selectionEnd;
-                        const text = contentTextarea.value;
-                        
-                        // 插入图片链接
-                        contentTextarea.value = text.substring(0, start) + imageMarkdown + text.substring(end);
-                        
-                        // 关闭模态框
+                        const range = quill.getSelection(true);
+                        quill.insertEmbed(range.index, 'image', data.url);
                         imageUploadModal.hide();
-                        
-                        // 清空文件输入
-                        document.getElementById('image').value = '';
+                        fileInput.value = '';
                     } else {
-                        alert('图片上传失败');
+                        alert(data.message || '图片上传失败');
                     }
                 })
                 .catch(error => {
                     console.error('上传失败:', error);
                     alert('图片上传失败');
                 });
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function(e) {
+                // Ctrl+S or Cmd+S: Save
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    diaryForm.submit();
+                }
+                // Ctrl+N or Cmd+N: New diary (go to home)
+                if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                    e.preventDefault();
+                    if (confirm('确定要放弃当前编辑并返回首页吗？')) {
+                        window.location.href = "{{ url_for('index') }}";
+                    }
+                }
+                // Ctrl+B or Cmd+B: Bold selected text
+                if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                    e.preventDefault();
+                    quill.format('bold', true);
+                }
+                // Ctrl+I or Cmd+I: Italic selected text
+                if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                    e.preventDefault();
+                    quill.format('italic', true);
+                }
             });
         });
     </script>

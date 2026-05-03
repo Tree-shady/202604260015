@@ -2,13 +2,13 @@
 
 {% block content %}
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
                 <div class="card-header">
                     <h2><i class="bi bi-pencil-square"></i> 编辑日记</h2>
                 </div>
                 <div class="card-body">
-                    <form method="POST">
+                    <form method="POST" id="diaryForm">
                         <div class="row mb-3">
                             <div class="col-md-4">
                                 <label for="date" class="form-label">
@@ -33,7 +33,7 @@
                                         'neutral': '😐 一般'
                                     } %}
                                     {% for mood_type, mood_label in moods.items() %}
-                                        <label class="btn btn-outline-primary">
+                                        <label class="btn btn-outline-primary {% if mood_type == current_mood %}active{% endif %}">
                                             <input type="radio" name="mood" value="{{ mood_type }}" class="d-none" {% if mood_type == current_mood %}checked{% endif %}>
                                             {{ mood_label }}
                                         </label>
@@ -55,40 +55,21 @@
                             <small class="form-text text-muted">多个标签用逗号分隔</small>
                         </div>
                         <div class="mb-4">
-                            <div class="d-flex justify-content-between mb-2">
-                                <label for="content" class="form-label">
-                                    <i class="bi bi-file-text text-primary me-1"></i>内容
-                                </label>
+                            <label for="content" class="form-label">
+                                <i class="bi bi-file-text text-primary me-1"></i>内容
+                            </label>
+                            <div id="editor-container">{{ content|safe }}</div>
+                            <input type="hidden" name="content" id="content" value="">
+                            <div class="editor-footer">
+                                <span id="wordCount">0 字</span>
                                 <div class="d-flex gap-2">
-                                    <span class="text-muted small" id="wordCount">0 字</span>
-                                    <button type="button" class="btn btn-secondary" id="uploadImageBtn">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="uploadImageBtn">
                                         <i class="bi bi-image"></i> 插入图片
                                     </button>
                                 </div>
                             </div>
-                            <textarea class="form-control" id="content" name="content" rows="12" required>{{ content }}</textarea>
                         </div>
-                        
-                        <script>
-                            document.addEventListener('DOMContentLoaded', function() {
-                                const contentTextarea = document.getElementById('content');
-                                const wordCountElement = document.getElementById('wordCount');
-                                
-                                // 字数统计函数
-                                function updateWordCount() {
-                                    const content = contentTextarea.value;
-                                    const wordCount = content.length;
-                                    wordCountElement.textContent = `${wordCount} 字`;
-                                }
-                                
-                                // 初始统计
-                                updateWordCount();
-                                
-                                // 实时统计
-                                contentTextarea.addEventListener('input', updateWordCount);
-                            });
-                        </script>
-                        
+
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-lg"></i> 保存
@@ -102,8 +83,8 @@
             </div>
         </div>
     </div>
-    
-    <!-- 图片上传模态框 (移到主表单外部) -->
+
+    <!-- 图片上传模态框 -->
     <div class="modal fade" id="imageUploadModal" tabindex="-1" aria-labelledby="imageUploadModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -112,7 +93,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="imageUploadForm" action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data">
+                    <form id="imageUploadForm" enctype="multipart/form-data">
                         <input type="hidden" name="date" value="{{ date_str }}">
                         <div class="mb-3">
                             <label for="image" class="form-label">选择图片</label>
@@ -130,25 +111,76 @@
             </div>
         </div>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // 图片上传按钮
+            // Initialize Quill editor with existing content
+            const quill = new Quill('#editor-container', {
+                theme: 'snow',
+                placeholder: '今天发生了什么...',
+                modules: {
+                    toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['blockquote', 'code-block'],
+                        ['link', 'image'],
+                        ['clean']
+                    ]
+                }
+            });
+
+            // Set initial content
+            const initialContent = `{{ content|tojson|safe }}`;
+            if (initialContent && initialContent.trim()) {
+                try {
+                    const contentData = JSON.parse(initialContent);
+                    if (contentData) {
+                        quill.clipboard.dangerouslyPasteHTML(contentData);
+                    }
+                } catch (e) {
+                    quill.clipboard.dangerouslyPasteHTML(initialContent);
+                }
+            }
+
+            // Elements
+            const contentInput = document.getElementById('content');
+            const wordCountElement = document.getElementById('wordCount');
+            const diaryForm = document.getElementById('diaryForm');
             const uploadImageBtn = document.getElementById('uploadImageBtn');
             const imageUploadModal = new bootstrap.Modal(document.getElementById('imageUploadModal'));
-            const imageUploadForm = document.getElementById('imageUploadForm');
-            const submitImageUpload = document.getElementById('submitImageUpload');
-            const contentTextarea = document.getElementById('content');
-            
-            // 打开图片上传模态框
+
+            // Update word count
+            function updateWordCount() {
+                const text = quill.getText();
+                const charCount = text.trim().length;
+                wordCountElement.textContent = `${charCount} 字`;
+            }
+
+            quill.on('text-change', updateWordCount);
+            updateWordCount();
+
+            // Form submit - sync Quill content to hidden input
+            diaryForm.addEventListener('submit', function() {
+                contentInput.value = quill.root.innerHTML;
+            });
+
+            // Image upload
             uploadImageBtn.addEventListener('click', function() {
                 imageUploadModal.show();
             });
-            
-            // 提交图片上传
-            submitImageUpload.addEventListener('click', function() {
-                const formData = new FormData(imageUploadForm);
-                
+
+            document.getElementById('submitImageUpload').addEventListener('click', function() {
+                const fileInput = document.getElementById('image');
+                if (!fileInput.files[0]) {
+                    alert('请选择图片');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                formData.append('date', document.getElementById('date').value);
+
                 fetch("{{ url_for('upload_image') }}", {
                     method: 'POST',
                     body: formData
@@ -156,25 +188,12 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // 插入图片到文本框
-                        const imageUrl = data.url;
-                        const imageMarkdown = `![图片](${imageUrl})\n\n`;
-                        
-                        // 获取当前光标位置
-                        const start = contentTextarea.selectionStart;
-                        const end = contentTextarea.selectionEnd;
-                        const text = contentTextarea.value;
-                        
-                        // 插入图片链接
-                        contentTextarea.value = text.substring(0, start) + imageMarkdown + text.substring(end);
-                        
-                        // 关闭模态框
+                        const range = quill.getSelection(true);
+                        quill.insertEmbed(range.index, 'image', data.url);
                         imageUploadModal.hide();
-                        
-                        // 清空文件输入
-                        document.getElementById('image').value = '';
+                        fileInput.value = '';
                     } else {
-                        alert('图片上传失败');
+                        alert(data.message || '图片上传失败');
                     }
                 })
                 .catch(error => {
