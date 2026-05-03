@@ -5,7 +5,8 @@ import json
 import logging
 import uuid
 import imghdr
-from datetime import datetime
+import calendar
+from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -473,7 +474,10 @@ def index(year=None, month=None):
                          prev_month=prev_month,
                          next_year=next_year,
                          next_month=next_month,
-                         stats=stats)
+                         stats=stats,
+                         mood_stats={},
+                         mood_emoji={'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'},
+                         mood_labels={'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'})
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
