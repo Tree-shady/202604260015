@@ -58,6 +58,31 @@
                                 </label>
                             </div>
                         </div>
+                        
+                        <!-- 问候语设置 -->
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-emoji-smile text-primary"></i> 问候语设置</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="greetings_enabled" id="greetings-enabled" {% if config.greetings.enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="greetings-enabled">
+                                    启用问候语
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="greetings_show_on_startup" id="greetings-show-on-startup" {% if config.greetings.show_on_startup %}checked{% endif %}>
+                                <label class="form-check-label" for="greetings-show-on-startup">
+                                    启动时显示问候语
+                                </label>
+                            </div>
+                            <div class="mb-2">
+                                <label for="greetings-source" class="form-label">问候语来源</label>
+                                <select class="form-select" id="greetings-source" name="greetings_source">
+                                    <option value="local" {% if config.greetings.source == 'local' %}selected{% endif %}>本地随机</option>
+                                    <option value="api" {% if config.greetings.source == 'api' %}selected{% endif %}>在线API</option>
+                                </select>
+                                <small class="text-muted">在线API可能会因为网络原因失败，此时会自动回退到本地</small>
+                            </div>
+                        </div>
 
                         <!-- 密码设置 -->
                         <div class="mb-4">

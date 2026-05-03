@@ -1,6 +1,8 @@
-Flask>=2.3.0
-PyQt6==6.1.0
-markdown==3.10.2
-colorama==0.4.4
-SQLAlchemy==1.4.23
-python-dotenv==1.0.0
+Flask>=3.0.0
+Flask-Caching>=2.1.0
+SQLAlchemy>=2.0.0
+markdown==3.6
+colorama==0.4.6
+python-dotenv>=1.0.0
+werkzeug>=3.0.0
+requests>=2.0.0

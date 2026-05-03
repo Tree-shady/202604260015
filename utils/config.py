@@ -33,6 +33,11 @@ DEFAULT_CONFIG = {
     "notifications": {
         "enabled": True,
         "level": "info"  # info, warning, error
+    },
+    "greetings": {
+        "enabled": True,
+        "source": "local",  # local, api
+        "show_on_startup": True
     }
 }
 

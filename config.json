@@ -19,5 +19,10 @@
   "notifications": {
     "enabled": true,
     "level": "info"
+  },
+  "greetings": {
+    "enabled": true,
+    "source": "api",
+    "show_on_startup": true
   }
 }

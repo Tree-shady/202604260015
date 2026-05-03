@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}日记提醒设置{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-lg">
+            <div class="card-header bg-gradient-to-r from-primary to-secondary text-white">
+                <h2 class="text-center mb-0">📅 日记提醒设置</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="space-y-4">
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" id="enabled" name="enabled" {% if enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="enabled">
+                            <strong>启用日记提醒</strong>
+                        </label>
+                        <p class="text-muted small mt-1">开启后，系统会在设定时间提醒您写日记</p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="reminder_time" class="form-label">
+                            <strong>提醒时间</strong>
+                        </label>
+                        <input type="time" class="form-control" id="reminder_time" name="reminder_time" 
+                               value="{{ reminder_time }}" required>
+                        <p class="text-muted small">建议选择一个您通常有空写日记的时间</p>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">💡 使用提示</h5>
+                        <ul class="mb-0">
+                            <li>建议设置在晚上固定时间，形成写日记的习惯</li>
+                            <li>提醒会在浏览器中弹出通知（需要允许通知权限）</li>
+                            <li>如果当天已经写了日记，不会重复提醒</li>
+                        </ul>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-3">
+                        保存设置
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const enabled = document.getElementById('enabled');
+    const reminderTime = document.getElementById('reminder_time');
+    
+    enabled.addEventListener('change', function() {
+        reminderTime.disabled = !enabled.checked;
+    });
+    
+    reminderTime.disabled = !enabled.checked;
+});
+</script>
+{% endblock %}

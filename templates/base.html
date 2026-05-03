@@ -693,6 +693,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{{ url_for('reminder') }}" class="nav-link {% if request.endpoint == 'reminder' %}active{% endif %}">
+                        <i class="bi bi-bell"></i>
+                        提醒设置
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}">
                         <i class="bi bi-gear"></i>
                         设置

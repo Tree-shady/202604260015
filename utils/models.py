@@ -30,6 +30,7 @@ class User(Base):
     password_expires_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)
     is_temporary = Column(Boolean, default=False)
+    settings = Column(Text, default='{}')
 
     entries = relationship('Entry', back_populates='user', cascade='all, delete-orphan')
 

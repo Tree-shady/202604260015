@@ -26,8 +26,8 @@ def get_notifications(limit=50, unread_only=False):
     Returns:
         list: 通知列表
     """
-    session = get_session()
-    query = session.query(Notification).order_by(Notification.created_at.desc())
+    db_session = get_session()
+    query = db_session.query(Notification).order_by(Notification.created_at.desc())
     
     if unread_only:
         query = query.filter_by(read=False)
@@ -54,7 +54,7 @@ def add_notification(message, level='info', title=''):
     Returns:
         dict: 创建的通知对象
     """
-    session = get_session()
+    db_session = get_session()
     
     notification = Notification(
         title=title,
@@ -63,8 +63,8 @@ def add_notification(message, level='info', title=''):
         read=False
     )
     
-    session.add(notification)
-    session.commit()
+    db_session.add(notification)
+    db_session.commit()
     
     return {
         'id': str(notification.id),
@@ -84,12 +84,12 @@ def mark_as_read(notification_id):
     Returns:
         bool: 是否成功标记
     """
-    session = get_session()
+    db_session = get_session()
     try:
-        notification = session.query(Notification).filter_by(id=int(notification_id)).first()
+        notification = db_session.query(Notification).filter_by(id=int(notification_id)).first()
         if notification:
             notification.read = True
-            session.commit()
+            db_session.commit()
             return True
     except ValueError:
         pass
@@ -97,9 +97,9 @@ def mark_as_read(notification_id):
 
 def mark_all_as_read():
     """标记所有通知为已读"""
-    session = get_session()
-    session.query(Notification).filter_by(read=False).update({'read': True})
-    session.commit()
+    db_session = get_session()
+    db_session.query(Notification).filter_by(read=False).update({'read': True})
+    db_session.commit()
 
 def delete_notification(notification_id):
     """删除通知
@@ -110,12 +110,12 @@ def delete_notification(notification_id):
     Returns:
         bool: 是否成功删除
     """
-    session = get_session()
+    db_session = get_session()
     try:
-        notification = session.query(Notification).filter_by(id=int(notification_id)).first()
+        notification = db_session.query(Notification).filter_by(id=int(notification_id)).first()
         if notification:
-            session.delete(notification)
-            session.commit()
+            db_session.delete(notification)
+            db_session.commit()
             return True
     except ValueError:
         pass
@@ -127,14 +127,14 @@ def get_unread_count():
     Returns:
         int: 未读通知数量
     """
-    session = get_session()
-    return session.query(Notification).filter_by(read=False).count()
+    db_session = get_session()
+    return db_session.query(Notification).filter_by(read=False).count()
 
 def clear_all_notifications():
     """清空所有通知"""
-    session = get_session()
-    session.query(Notification).delete()
-    session.commit()
+    db_session = get_session()
+    db_session.query(Notification).delete()
+    db_session.commit()
 
 # 兼容旧函数名
 def init_notifications_file():

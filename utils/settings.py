@@ -6,6 +6,37 @@
 
 from utils.config import get_config, save_config, DEFAULT_CONFIG
 from utils.notification import show_notification
+from utils.models import get_session, User
+
+def get_user_setting(user_id, key, default=None):
+    """获取用户设置"""
+    db_session = get_session()
+    user = db_session.query(User).filter_by(id=user_id).first()
+    if user:
+        try:
+            import json
+            settings = json.loads(user.settings) if getattr(user, 'settings', None) else {}
+            return settings.get(key, default)
+        except:
+            return default
+    return default
+
+def set_user_setting(user_id, key, value):
+    """设置用户设置"""
+    db_session = get_session()
+    user = db_session.query(User).filter_by(id=user_id).first()
+    if user:
+        try:
+            import json
+            settings = json.loads(user.settings) if getattr(user, 'settings', None) else {}
+            settings[key] = value
+            user.settings = json.dumps(settings)
+            db_session.commit()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            return False
+    return False
 
 def show_settings():
     """显示设置菜单"""

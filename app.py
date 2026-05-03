@@ -50,7 +50,7 @@ ENTRIES_DIR.mkdir(exist_ok=True)
 IMAGES_DIR.mkdir(exist_ok=True)
 
 # 导入数据库模型
-from utils.models import init_db, get_session, Entry, Tag, Mood
+from utils.models import init_db, get_session, Entry, Tag, Mood, entry_tags
 
 # 导入验证模块
 from utils.validation import validate_date_str, validate_tag, sanitize_tags
@@ -72,6 +72,9 @@ from utils.auth import (
     USER_ROLES,
     init_users
 )
+
+# 导入问候语模块
+from utils.greeting import get_combined_greeting, format_greeting
 
 # 环境配置
 class Config:
@@ -133,6 +136,14 @@ app = Flask(__name__)
 config_class = get_config_class()
 app.config.from_object(config_class)
 
+# 添加缓存配置
+app.config['CACHE_TYPE'] = 'SimpleCache'
+app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5分钟
+
+# 初始化缓存
+from flask_caching import Cache
+cache = Cache(app)
+
 # 初始化数据库和管理员用户
 try:
     init_db(app.config['SQLALCHEMY_DATABASE_URI'])
@@ -190,6 +201,7 @@ def teardown_request(exception):
         logger.error(f"关闭数据库会话时出错: {e}")
 
 # 安全工具函数
+@cache.memoize(timeout=300)
 def get_tags():
     db_session = get_session()
     tags = db_session.query(Tag).all()
@@ -326,6 +338,7 @@ def get_stats():
         'total_chars': total_chars,
         'total_tags': total_tags
     }
+get_stats = cache.memoize(timeout=300)(get_stats)
 
 # 用户认证路由
 @app.route('/login', methods=['GET', 'POST'])
@@ -356,6 +369,22 @@ def login():
             session['password_expired'] = result.get('password_expired', False)
             session.permanent = True
             flash(f'欢迎回来，{result["username"]}！', 'success')
+            
+            # 显示问候语通知
+            config = get_config()
+            greetings_config = config.get('greetings', {})
+            if greetings_config.get('enabled', True) and greetings_config.get('show_on_startup', True):
+                greeting_data = get_combined_greeting()
+                greeting_text = format_greeting(greeting_data['daily_greeting'])
+                try:
+                    from utils.notification import add_notification
+                    add_notification(
+                        message=f"{greeting_data['time_greeting']} {greeting_text}",
+                        level='info',
+                        title='今日问候'
+                    )
+                except Exception as e:
+                    logger.error(f"添加问候语通知失败: {e}")
 
             next_page = request.args.get('next')
             if next_page:
@@ -483,6 +512,9 @@ def index(year=None, month=None):
         if entry.mood:
             mt = entry.mood.mood_type
             mood_stats[mt] = mood_stats.get(mt, 0) + 1
+    
+    # 获取问候语
+    greeting_data = get_combined_greeting()
 
     return render_template('index.html',
                          entries=entries,
@@ -497,7 +529,8 @@ def index(year=None, month=None):
                          stats=stats,
                          mood_stats=mood_stats,
                          mood_emoji={'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'},
-                         mood_labels={'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'})
+                         mood_labels={'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'},
+                         greeting_data=greeting_data)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -513,6 +546,12 @@ def settings():
         config['backup_enabled'] = 'backup_enabled' in request.form
         config['auto_save'] = 'auto_save' in request.form
         config['notifications']['enabled'] = 'notifications_enabled' in request.form
+        # 问候语设置
+        if 'greetings' not in config:
+            config['greetings'] = {}
+        config['greetings']['enabled'] = 'greetings_enabled' in request.form
+        config['greetings']['source'] = request.form.get('greetings_source', 'local')
+        config['greetings']['show_on_startup'] = 'greetings_show_on_startup' in request.form
 
         save_config(config)
         flash('设置已保存', 'success')
@@ -967,44 +1006,40 @@ def stats():
     
     # 获取标签统计
     all_tags = db_session.query(Tag).all()
-    tag_stats = [{'tag': t.name, 'count': len([e for e in t.entries if e.user_id == current_user_id])} for t in all_tags]
-    tag_stats.sort(key=lambda x: x['count'], reverse=True)
-    total_tags = len(all_tags)
+    tag_stats_list = []
+    for tag in all_tags:
+        count = len([e for e in tag.entries if e.user_id == current_user_id])
+        if count > 0:
+            tag_stats_list.append({'tag': tag.name, 'count': count})
+    tag_stats_list.sort(key=lambda x: x['count'], reverse=True)
+    tag_stats_list = tag_stats_list[:10]
+    total_tags = len(tag_stats_list)
     
-    # 获取每月日记数量
-    monthly_stats = {}
+    # 按月统计
+    monthly_stats_dict = {}
     for entry in entries:
-        year_month = entry.date_str[:7]
-        if year_month not in monthly_stats:
-            monthly_stats[year_month] = 0
-        monthly_stats[year_month] += 1
+        month = entry.date_str[:7]
+        if month not in monthly_stats_dict:
+            monthly_stats_dict[month] = 0
+        monthly_stats_dict[month] += 1
+    monthly_stats_list = [{'month': m, 'count': c} for m, c in sorted(monthly_stats_dict.items())]
     
-    monthly_stats_list = [{'month': k, 'count': v} for k, v in monthly_stats.items()]
-    monthly_stats_list.sort(key=lambda x: x['month'])
-    
-    # 获取心情统计
+    # 心情统计
     mood_stats = {'happy': 0, 'excited': 0, 'calm': 0, 'tired': 0, 'sad': 0, 'angry': 0, 'anxious': 0, 'neutral': 0}
-    mood_labels = {'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'}
-    mood_emoji = {'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'}
-    
     for entry in entries:
         if entry.mood:
             mood_stats[entry.mood.mood_type] = mood_stats.get(entry.mood.mood_type, 0) + 1
     
-    # 获取最近30天的心情数据（用于图表）(优化：使用数据库查询)
+    mood_labels = {'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'}
+    mood_emoji = {'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'}
+    
+    # 获取最近30天的心情数据
     mood_trend = []
     from datetime import datetime, timedelta
     today = datetime.now().date()
     
-    # 批量查询最近30天的日记（优化：一次性查询）
-    date_range_start = (today - timedelta(days=29)).strftime('%Y-%m-%d')
-    recent_entries = db_session.query(Entry).filter(
-        Entry.user_id == current_user_id,
-        Entry.date_str >= date_range_start
-    ).all()
-    
     # 构建日期到日记的映射
-    entries_by_date = {e.date_str: e for e in recent_entries}
+    entries_by_date = {e.date_str: e for e in entries}
     
     for i in range(29, -1, -1):
         day = today - timedelta(days=i)
@@ -1034,16 +1069,36 @@ def stats():
     
     return render_template('stats.html', 
                          stats=stats_data,
-                         tag_stats=tag_stats[:10],
+                         tag_stats=tag_stats_list,
                          monthly_stats=monthly_stats_list,
                          mood_stats=mood_stats,
                          mood_trend=mood_trend)
 
-# 图片相关路由
-@app.route('/images/<path:filename>')
-def serve_image(filename):
-    """提供图片访问"""
-    return send_from_directory('images', filename)
+@app.route('/reminder', methods=['GET', 'POST'])
+@login_required
+def reminder():
+    """日记提醒设置"""
+    current_user_id = session.get('user_id')
+    
+    if request.method == 'POST':
+        reminder_time = request.form.get('reminder_time', '21:00')
+        enabled = request.form.get('enabled', 'off') == 'on'
+        
+        # 保存到用户设置
+        from utils.settings import set_user_setting
+        set_user_setting(current_user_id, 'reminder_enabled', enabled)
+        set_user_setting(current_user_id, 'reminder_time', reminder_time)
+        
+        flash(f'提醒设置已更新', 'success')
+        return redirect(url_for('reminder'))
+    
+    from utils.settings import get_user_setting
+    enabled = get_user_setting(current_user_id, 'reminder_enabled', False)
+    reminder_time = get_user_setting(current_user_id, 'reminder_time', '21:00')
+    
+    return render_template('reminder.html', 
+                         enabled=enabled,
+                         reminder_time=reminder_time)
 
 @app.route('/upload/image', methods=['POST'])
 def upload_image():
