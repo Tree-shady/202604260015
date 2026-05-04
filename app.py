@@ -73,6 +73,9 @@ from utils.auth import (
     init_users
 )
 
+# 导入配置模块
+from utils.config import get_config
+
 # 导入问候语模块
 from utils.greeting import get_combined_greeting, format_greeting
 
