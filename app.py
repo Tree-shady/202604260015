@@ -76,6 +76,18 @@ from utils.auth import (
 # 导入问候语模块
 from utils.greeting import get_combined_greeting, format_greeting
 
+# 导入打卡模块
+from utils.streak import (
+    update_streak_on_entry,
+    get_user_streak_info,
+    get_streak_message,
+    get_streak_reward,
+    recalculate_all_user_streaks
+)
+
+# 导入年度回顾模块
+from utils.yearly_review import get_yearly_review
+
 # 环境配置
 class Config:
     """应用配置类"""
@@ -515,6 +527,11 @@ def index(year=None, month=None):
     
     # 获取问候语
     greeting_data = get_combined_greeting()
+    
+    # 获取打卡信息
+    streak_info = get_user_streak_info(current_user_id)
+    streak_message = get_streak_message(streak_info['current_streak'], streak_info['longest_streak'])
+    streak_badges = get_streak_reward(streak_info['current_streak'])
 
     return render_template('index.html',
                          entries=entries,
@@ -530,7 +547,10 @@ def index(year=None, month=None):
                          mood_stats=mood_stats,
                          mood_emoji={'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'},
                          mood_labels={'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'},
-                         greeting_data=greeting_data)
+                         greeting_data=greeting_data,
+                         streak_info=streak_info,
+                         streak_message=streak_message,
+                         streak_badges=streak_badges)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -665,11 +685,23 @@ def new_entry():
         db_session.commit()
         logger.info("事务提交成功")
 
+        # 更新打卡统计
+        streak_info = None
+        try:
+            streak_info = update_streak_on_entry(current_user_id, date_str)
+            logger.info(f"打卡统计更新: {streak_info}")
+        except Exception as e:
+            logger.error(f"更新打卡统计失败: {e}")
+
         # 添加通知
         try:
             from utils.notification import add_notification
+            notification_msg = f'新日记已保存：{date_str}'
+            if streak_info and streak_info['current_streak'] > 0:
+                notification_msg += f' | 🔥 连续 {streak_info["current_streak"]} 天！'
+            
             add_notification(
-                message=f'新日记已保存：{date_str}',
+                message=notification_msg,
                 level='success',
                 title='日记保存成功'
             )
@@ -1073,6 +1105,27 @@ def stats():
                          monthly_stats=monthly_stats_list,
                          mood_stats=mood_stats,
                          mood_trend=mood_trend)
+
+@app.route('/yearly-review', methods=['GET'])
+@login_required
+def yearly_review():
+    """年度回顾页面"""
+    current_user_id = session.get('user_id')
+    year = request.args.get('year', datetime.now().year, type=int)
+    
+    review_data = get_yearly_review(current_user_id, year)
+    
+    # 提供年份选择（有日记的年份）
+    session_db = get_session()
+    user_entries = session_db.query(Entry).filter_by(user_id=current_user_id).all()
+    available_years = sorted(list(set([int(e.date_str[:4]) for e in user_entries])), reverse=True)
+    
+    return render_template('yearly_review.html', 
+                         review_data=review_data,
+                         available_years=available_years,
+                         selected_year=year,
+                         mood_emoji={'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'},
+                         mood_labels={'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'})
 
 @app.route('/reminder', methods=['GET', 'POST'])
 @login_required

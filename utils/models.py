@@ -31,6 +31,12 @@ class User(Base):
     expires_at = Column(DateTime, nullable=True)
     is_temporary = Column(Boolean, default=False)
     settings = Column(Text, default='{}')
+    
+    # 连续打卡相关
+    current_streak = Column(Integer, default=0)  # 当前连续打卡天数
+    longest_streak = Column(Integer, default=0)  # 最长连续打卡天数
+    last_entry_date = Column(String(10), nullable=True)  # 最后写日记的日期
+    total_entries = Column(Integer, default=0)  # 总日记数
 
     entries = relationship('Entry', back_populates='user', cascade='all, delete-orphan')
 

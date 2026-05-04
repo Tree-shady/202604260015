@@ -687,6 +687,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{{ url_for('yearly_review') }}" class="nav-link {% if request.endpoint == 'yearly_review' %}active{% endif %}">
+                        <i class="bi bi-calendar-heart"></i>
+                        年度回顾
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="{{ url_for('import_export') }}" class="nav-link {% if request.endpoint == 'import_export' %}active{% endif %}">
                         <i class="bi bi-upload"></i>
                         导入/导出
