@@ -70,6 +70,50 @@
         </div>
     </div>
 
+    <!-- 回忆卡片 -->
+    {% if memories_data or milestone_data.total_entries > 0 %}
+    <div class="card mb-4" style="background: linear-gradient(135deg, #ff9a56 0%, #ff6a8b 100%);">
+        <div class="card-body text-white">
+            <h4 class="mb-3"><i class="bi bi-hourglass-split me-2"></i>那年今日</h4>
+            {% if milestone_data.total_entries > 0 %}
+                <p class="mb-2">
+                    <span class="badge bg-light text-dark me-2">{{ milestone_data.total_entries }}</span>
+                    篇日记记录
+                </p>
+                {% if milestone_data.first_entry %}
+                    <p class="mb-0 small opacity-75">
+                        第一篇日记：{{ milestone_data.first_entry.date_str }}
+                    </p>
+                {% endif %}
+            {% endif %}
+            {% if memories_data %}
+                <hr class="my-3 opacity-25">
+                <p class="mb-3 small">往年今日：</p>
+                <div class="row">
+                    {% for year, entries in memories_data.items() %}
+                        <div class="col-md-4 mb-2">
+                            <div class="bg-white bg-opacity-25 rounded p-2">
+                                <div class="fw-bold">{{ year }}年</div>
+                                <div class="small">
+                                    {% for entry in entries %}
+                                        <div>
+                                            <a href="{{ url_for('view_entry', date_str=entry.date_str) }}" 
+                                               class="text-white text-decoration-none">
+                                                📝 {{ entry.date_str }} 
+                                                <span class="badge bg-light text-dark ms-1">{{ entry.content|length }} 字</span>
+                                            </a>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- 统计卡片 -->
     <div class="stats-grid mb-4">
         <div class="stat-card">

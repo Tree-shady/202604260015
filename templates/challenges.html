@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mb-4">
+        <div class="col-md-8 text-center">
+            <h1 class="display-4 fw-bold">
+                <i class="bi bi-trophy me-2"></i>写作挑战
+            </h1>
+            <p class="text-muted">坚持写作，养成好习惯！</p>
+        </div>
+    </div>
+
+    {% if challenge_status.active_challenge %}
+    <div class="row justify-content-center mb-4">
+        <div class="col-md-8">
+            <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-body text-white">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">
+                            <span class="me-2">{{ challenge_status.active_challenge.badge }}</span>
+                            {{ challenge_status.active_challenge.name }}
+                        </h4>
+                        {% if challenge_status.active_challenge.wrote_today %}
+                            <span class="badge bg-success">今日已完成 ✓</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">今日未完成</span>
+                        {% endif %}
+                    </div>
+                    <p class="mb-3">{{ challenge_status.active_challenge.description }}</p>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>进度</span>
+                            <span>{{ challenge_status.active_challenge.days_passed }} / {{ challenge_status.active_challenge.days }} 天</span>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-light" role="progressbar" 
+                                 style="width: {{ challenge_status.active_challenge.progress }}%">
+                                {{ challenge_status.active_challenge.progress }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="fs-4 fw-bold">{{ challenge_status.active_challenge.days_passed }}</div>
+                            <div class="small opacity-75">已完成天数</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fs-4 fw-bold">{{ challenge_status.active_challenge.days - challenge_status.active_challenge.days_passed }}</div>
+                            <div class="small opacity-75">剩余天数</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fs-4 fw-bold">{{ challenge_status.active_challenge.progress }}%</div>
+                            <div class="small opacity-75">完成率</div>
+                        </div>
+                    </div>
+                    
+                    <form action="{{ url_for('challenges_abandon') }}" method="POST" class="mt-4">
+                        <button type="submit" class="btn btn-outline-light btn-sm" 
+                                onclick="return confirm('确定要放弃当前挑战吗？')">
+                            放弃挑战
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if challenge_status.completed_challenges %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h4 class="mb-3"><i class="bi bi-check-circle me-2"></i>已完成挑战</h4>
+            <div class="row g-3">
+                {% for challenge in challenge_status.completed_challenges %}
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <div class="fs-1 mb-2">{{ challenge.badge }}</div>
+                                <h5>{{ challenge.name }}</h5>
+                                <p class="small mb-2">{{ challenge.description }}</p>
+                                <div class="small opacity-75">
+                                    完成于 {{ challenge.completed_date }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-12">
+            <h4 class="mb-3"><i class="bi bi-list-task me-2"></i>可参加的挑战</h4>
+            <div class="row g-4">
+                {% for challenge in challenge_status.available_challenges %}
+                    <div class="col-md-6 col-lg-3">
+                        <div class="card h-100 {% if challenge.status == 'completed' %}border-success{% endif %}">
+                            <div class="card-body text-center">
+                                <div class="fs-1 mb-3">{{ challenge.badge }}</div>
+                                <h5 class="card-title">{{ challenge.name }}</h5>
+                                <p class="card-text text-muted small">{{ challenge.description }}</p>
+                                <div class="mb-3">
+                                    <span class="badge bg-primary">{{ challenge.days }} 天</span>
+                                </div>
+                                
+                                {% if challenge.status == 'completed' %}
+                                    <button class="btn btn-success btn-sm" disabled>
+                                        <i class="bi bi-check-circle me-1"></i>已完成
+                                    </button>
+                                {% elif challenge.status == 'active' %}
+                                    <button class="btn btn-outline-primary btn-sm" disabled>
+                                        进行中...
+                                    </button>
+                                {% else %}
+                                    <form action="{{ url_for('challenges_start') }}" method="POST">
+                                        <input type="hidden" name="challenge_id" value="{{ challenge.id }}">
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            开始挑战
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="bi bi-info-circle me-2"></i>挑战说明</h5>
+                    <ul class="mb-0">
+                        <li>每个挑战需要<strong>连续</strong>写日记才计数</li>
+                        <li>如果中途中断一天，挑战将失败，需要重新开始</li>
+                        <li>完成挑战可获得对应的成就徽章</li>
+                        <li>放弃当前挑战不会影响已完成的挑战记录</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

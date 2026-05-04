@@ -708,6 +708,18 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{{ url_for('habits') }}" class="nav-link {% if request.endpoint == 'habits' %}active{% endif %}">
+                        <i class="bi bi-graph-up"></i>
+                        习惯分析
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('challenges') }}" class="nav-link {% if request.endpoint == 'challenges' %}active{% endif %}">
+                        <i class="bi bi-trophy"></i>
+                        写作挑战
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="{{ url_for('import_export') }}" class="nav-link {% if request.endpoint == 'import_export' %}active{% endif %}">
                         <i class="bi bi-upload"></i>
                         导入/导出

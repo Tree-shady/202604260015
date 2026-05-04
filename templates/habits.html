@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mb-4">
+        <div class="col-md-8 text-center">
+            <h1 class="display-4 fw-bold">
+                <i class="bi bi-graph-up me-2"></i>写作习惯分析
+            </h1>
+        </div>
+    </div>
+
+    {% if heatmap_data.total_entries > 0 %}
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>坚持率</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="fs-1 fw-bold text-primary">{{ streak_data.completion_rate }}%</div>
+                        <p class="text-muted">从 {{ streak_data.total_active_days }} 天的记录中计算</p>
+                        <div class="progress mt-3" style="height: 25px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ streak_data.completion_rate }}%">
+                                {{ streak_data.completion_rate }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-trophy me-2"></i>连续记录</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="fs-3 fw-bold text-warning">🔥 {{ streak_data.current_streak }}</div>
+                                <div class="text-muted">当前连续</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="fs-3 fw-bold text-success">⭐ {{ streak_data.longest_streak }}</div>
+                                <div class="text-muted">最长连续</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>最佳写作时间</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if time_data.best_hour is not none %}
+                            <div class="text-center mb-3">
+                                <div class="fs-2 fw-bold text-primary">{{ time_data.best_hour }}:00</div>
+                                <div class="text-muted">最常写日记的时间</div>
+                            </div>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="fs-4 fw-bold text-info">{{ time_data.best_day }}</div>
+                                    <div class="text-muted">最佳星期</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="fs-4 fw-bold text-success">{{ time_data.avg_entries_per_day }}</div>
+                                    <div class="text-muted">日均篇数</div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="text-muted text-center">暂无数据</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-bar-chart-line me-2"></i>年度统计</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="fs-3 fw-bold text-primary">{{ year_data.total_entries }}</div>
+                                <div class="text-muted">日记总数</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="fs-3 fw-bold text-success">{{ year_data.total_chars }}</div>
+                                <div class="text-muted">总字数</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="fs-3 fw-bold text-info">{{ year_data.avg_chars }}</div>
+                                <div class="text-muted">平均字数</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="bi bi-calendar-month me-2"></i>写作热力图 - {{ selected_year }} 年</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="heatmap-container">
+                            {% for month in range(1, 13) %}
+                                <div class="heatmap-month">
+                                    <div class="heatmap-month-label">{{ month }}月</div>
+                                    <div class="heatmap-grid">
+                                        {% for day in range(1, 32) %}
+                                            {% set date_str = selected_year + '-' + (month|string).zfill(2) + '-' + (day|string).zfill(2) %}
+                                            {% set has_entry = date_str in heatmap_data.dates %}
+                                            {% set word_count = heatmap_data.heatmap.get(date_str, 0) %}
+                                            <div class="heatmap-day {% if has_entry %}has-entry{% endif %}"
+                                                 title="{{ date_str }}: {{ word_count }} 字"
+                                                 data-toggle="tooltip">
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="heatmap-legend mt-3">
+                            <span class="me-2">少:</span>
+                            <span class="heatmap-legend-box empty"></span>
+                            <span class="heatmap-legend-box low"></span>
+                            <span class="heatmap-legend-box medium"></span>
+                            <span class="heatmap-legend-box high"></span>
+                            <span class="ms-2">多</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>月度分布</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for month_name, count in monthly_data.items() %}
+                                <div class="col-4 col-md-2 mb-3">
+                                    <div class="text-center">
+                                        <div class="fw-bold">{{ month_name }}</div>
+                                        <div class="fs-4 text-primary">{{ count }}</div>
+                                        <div class="text-muted">篇</div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card text-center p-5">
+                    <div class="fs-1 mb-4">📊</div>
+                    <h3 class="mb-3">还没有足够的数据</h3>
+                    <p class="text-muted mb-4">开始写日记，我会帮你分析写作习惯！</p>
+                    <a href="{{ url_for('new_entry') }}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-pencil-square me-2"></i>写第一篇日记
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.heatmap-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.heatmap-month {
+    flex: 0 0 auto;
+}
+
+.heatmap-month-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.heatmap-day {
+    width: 12px;
+    height: 12px;
+    background: #e9ecef;
+    border-radius: 2px;
+}
+
+.heatmap-day.has-entry {
+    background: #10b981;
+}
+
+.heatmap-day.has-entry[title*="500"] {
+    background: #38ef7d;
+}
+
+.heatmap-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.heatmap-legend-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.heatmap-legend-box.empty {
+    background: #e9ecef;
+}
+
+.heatmap-legend-box.low {
+    background: #86efac;
+}
+
+.heatmap-legend-box.medium {
+    background: #10b981;
+}
+
+.heatmap-legend-box.high {
+    background: #38ef7d;
+}
+</style>
+{% endblock %}

@@ -88,6 +88,26 @@ from utils.streak import (
 # 导入年度回顾模块
 from utils.yearly_review import get_yearly_review
 
+# 导入习惯分析模块
+from utils.habits import (
+    get_writing_heatmap,
+    get_best_writing_time,
+    get_writing_streak_analysis,
+    get_monthly_completion,
+    get_year_summary
+)
+
+# 导入回忆模块
+from utils.memories import get_same_day_last_years, get_milestone_entries
+
+# 导入挑战模块
+from utils.challenges import (
+    start_challenge,
+    get_active_challenge,
+    abandon_challenge,
+    get_all_challenges_status
+)
+
 # 环境配置
 class Config:
     """应用配置类"""
@@ -533,6 +553,10 @@ def index(year=None, month=None):
     streak_message = get_streak_message(streak_info['current_streak'], streak_info['longest_streak'])
     streak_badges = get_streak_reward(streak_info['current_streak'])
 
+    # 获取回忆数据
+    memories_data = get_same_day_last_years(current_user_id, years=3)
+    milestone_data = get_milestone_entries(current_user_id)
+
     return render_template('index.html',
                          entries=entries,
                          tags=tag_data,
@@ -550,7 +574,9 @@ def index(year=None, month=None):
                          greeting_data=greeting_data,
                          streak_info=streak_info,
                          streak_message=streak_message,
-                         streak_badges=streak_badges)
+                         streak_badges=streak_badges,
+                         memories_data=memories_data,
+                         milestone_data=milestone_data)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -1126,6 +1152,66 @@ def yearly_review():
                          selected_year=year,
                          mood_emoji={'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'},
                          mood_labels={'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'})
+
+@app.route('/habits')
+@login_required
+def habits():
+    """写作习惯分析页面"""
+    current_user_id = session.get('user_id')
+    year = request.args.get('year', datetime.now().year, type=int)
+    
+    heatmap_data = get_writing_heatmap(current_user_id, year)
+    time_data = get_best_writing_time(current_user_id)
+    streak_data = get_writing_streak_analysis(current_user_id)
+    monthly_data = get_monthly_completion(current_user_id, year)
+    year_data = get_year_summary(current_user_id, year)
+    
+    return render_template('habits.html',
+                         heatmap_data={'heatmap': heatmap_data, 'total_entries': len(heatmap_data), 'dates': set(heatmap_data.keys())},
+                         time_data=time_data,
+                         streak_data=streak_data,
+                         monthly_data=monthly_data,
+                         year_data=year_data or {'total_entries': 0, 'total_chars': 0, 'avg_chars': 0},
+                         selected_year=year)
+
+@app.route('/challenges')
+@login_required
+def challenges():
+    """写作挑战页面"""
+    current_user_id = session.get('user_id')
+    
+    challenge_status = get_all_challenges_status(current_user_id)
+    
+    return render_template('challenges.html',
+                         challenge_status=challenge_status)
+
+@app.route('/challenges/start', methods=['POST'])
+@login_required
+def challenges_start():
+    """开始挑战"""
+    current_user_id = session.get('user_id')
+    challenge_id = request.form.get('challenge_id')
+    
+    result = start_challenge(current_user_id, challenge_id)
+    
+    if result:
+        if result['has_active']:
+            flash('你已经有进行中的挑战了！', 'warning')
+        else:
+            flash(f"开始{result['challenge']['name']}！加油！💪", 'success')
+    else:
+        flash('挑战不存在', 'danger')
+    
+    return redirect(url_for('challenges'))
+
+@app.route('/challenges/abandon', methods=['POST'])
+@login_required
+def challenges_abandon():
+    """放弃挑战"""
+    current_user_id = session.get('user_id')
+    abandon_challenge(current_user_id)
+    flash('已放弃当前挑战', 'info')
+    return redirect(url_for('challenges'))
 
 @app.route('/reminder', methods=['GET', 'POST'])
 @login_required
