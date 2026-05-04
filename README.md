@@ -135,7 +135,7 @@ pip install -r requirements.txt
 **开发模式启动：**
 
 ```bash
-python app.py
+python/python3 app.py
 ```
 
 > 💡 **提示**：Linux 系统请使用 `python3 app.py`，Windows 系统使用 `python app.py`。或者直接运行 `main.py`，它会自动检测系统类型选择正确的命令。
