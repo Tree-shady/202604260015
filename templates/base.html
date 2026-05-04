@@ -51,6 +51,12 @@
             padding: 1.5rem 0;
             flex-shrink: 0;
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
         }
 
         .logo {
@@ -111,6 +117,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
+            margin-left: 280px;
         }
 
         .top-bar {
@@ -617,6 +624,10 @@
                 width: 240px;
             }
 
+            .main-content {
+                margin-left: 240px;
+            }
+
             .search-box {
                 max-width: 250px;
             }
@@ -633,6 +644,10 @@
         @media (max-width: 576px) {
             .sidebar {
                 display: none;
+            }
+
+            .main-content {
+                margin-left: 0;
             }
 
             .top-bar {

@@ -106,6 +106,7 @@ pip install -r requirements.txt
 
 ```bash
 python app.py
+（main.py文件中已包含启动命令，linux环境使用python3启动，windows环境使用python启动，视实际情况选择）
 ```
 
 然后在浏览器中访问：http://127.0.0.1:5000
