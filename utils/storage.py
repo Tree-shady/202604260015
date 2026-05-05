@@ -69,12 +69,13 @@ def update_tags_index(date_str, tags):
     global _tags_cache
     _tags_cache = None  # 清除标签缓存
 
-def get_entry_content(date_str):
+def get_entry_content(date_str, user_id=1):
     """获取日记内容（带缓存）
-    
+
     Args:
         date_str: 日期字符串，格式 YYYY-MM-DD
-    
+        user_id: 用户ID
+
     Returns:
         tuple: (timestamp, tags, content)
             timestamp: 时间戳字符串
@@ -82,19 +83,35 @@ def get_entry_content(date_str):
             content: 日记内容
     """
     global _entry_cache
-    if date_str not in _entry_cache:
+    cache_key = f"{date_str}_{user_id}"
+    if cache_key not in _entry_cache:
         session = get_session()
-        entry = session.query(Entry).filter_by(date_str=date_str).first()
-        if not entry:
-            return "", [], ""
-        
-        timestamp = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        tags = [tag.name for tag in entry.tags]
-        content = entry.content
-        
-        _entry_cache[date_str] = (timestamp, tags, content)
-    
-    return _entry_cache[date_str]
+        entry = session.query(Entry).filter_by(date_str=date_str, user_id=user_id).first()
+        if entry:
+            timestamp = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            tags = [tag.name for tag in entry.tags]
+            content = entry.content
+            _entry_cache[cache_key] = (timestamp, tags, content)
+        else:
+            file_path = get_file_path(date_str)
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                lines = content.split('\n')
+                timestamp = ""
+                tags = []
+                if lines and lines[0].startswith("[") and "]" in lines[0]:
+                    timestamp = lines[0][1:-1]
+                    lines = lines[1:]
+                if lines and lines[0].startswith("Tags: "):
+                    tags = [t.strip() for t in lines[0][6:].split(",") if t.strip()]
+                    lines = lines[1:]
+                content = '\n'.join(lines)
+                _entry_cache[cache_key] = (timestamp, tags, content)
+            else:
+                _entry_cache[cache_key] = ("", [], "")
+
+    return _entry_cache[cache_key]
 
 def clear_entry_cache(date_str=None):
     """清除日记内容缓存"""
@@ -105,15 +122,80 @@ def clear_entry_cache(date_str=None):
     else:
         _entry_cache.clear()
 
-def get_entries():
+def get_entries(user_id=1):
     """获取所有日记"""
     session = get_session()
-    entries = session.query(Entry).order_by(Entry.date_str.desc()).all()
-    # 返回模拟的文件路径对象，保持向后兼容
+    entries = session.query(Entry).filter_by(user_id=user_id).order_by(Entry.date_str.desc()).all()
     class MockPath:
         def __init__(self, date_str):
             self.stem = date_str
     return [MockPath(entry.date_str) for entry in entries]
+
+def save_entry(date_str, content, tags=None, user_id=1):
+    """保存日记（通过数据库）
+
+    Args:
+        date_str: 日期字符串，格式 YYYY-MM-DD
+        content: 日记内容
+        tags: 标签列表
+        user_id: 用户ID
+
+    Returns:
+        Entry: 保存的日记对象
+    """
+    session = get_session()
+
+    entry = session.query(Entry).filter_by(date_str=date_str, user_id=user_id).first()
+    if entry:
+        entry.content = content
+        entry.timestamp = datetime.now()
+    else:
+        entry = Entry(
+            user_id=user_id,
+            date_str=date_str,
+            content=content,
+            timestamp=datetime.now()
+        )
+        session.add(entry)
+        session.flush()
+
+    if tags is not None:
+        entry.tags = []
+        for tag_name in tags:
+            if tag_name:
+                tag = session.query(Tag).filter_by(name=tag_name).first()
+                if not tag:
+                    tag = Tag(name=tag_name)
+                    session.add(tag)
+                entry.tags.append(tag)
+
+    session.commit()
+    clear_entry_cache(date_str)
+    global _tags_cache
+    _tags_cache = None
+
+    return entry
+
+def delete_entry(date_str, user_id=1):
+    """删除日记（通过数据库）
+
+    Args:
+        date_str: 日期字符串，格式 YYYY-MM-DD
+        user_id: 用户ID
+
+    Returns:
+        bool: 是否删除成功
+    """
+    session = get_session()
+    entry = session.query(Entry).filter_by(date_str=date_str, user_id=user_id).first()
+    if entry:
+        session.delete(entry)
+        session.commit()
+        clear_entry_cache(date_str)
+        global _tags_cache
+        _tags_cache = None
+        return True
+    return False
 
 # 图片处理相关函数
 def upload_image(image_file, date_str):

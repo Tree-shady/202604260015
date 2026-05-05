@@ -3,3 +3,5 @@ entries_backup_*
 .\trae
 .env
 diary.db
+__pycache__/
+/utils/_pycache_/

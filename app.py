@@ -599,8 +599,10 @@ def settings():
         if 'greetings' not in config:
             config['greetings'] = {}
         config['greetings']['enabled'] = 'greetings_enabled' in request.form
-        config['greetings']['source'] = request.form.get('greetings_source', 'local')
         config['greetings']['show_on_startup'] = 'greetings_show_on_startup' in request.form
+        # 问候语来源仅管理员可修改
+        if session.get('role') in ['admin', 'superadmin']:
+            config['greetings']['source'] = request.form.get('greetings_source', 'local')
 
         save_config(config)
         flash('设置已保存', 'success')

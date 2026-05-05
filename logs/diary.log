@@ -1,0 +1,5 @@
+2026-05-06 00:16:30 - diary - INFO - 查看统计信息
+2026-05-06 00:25:57 - diary - ERROR - 保存日记失败: save_mood() takes from 2 to 3 positional arguments but 4 were given
+2026-05-06 00:25:59 - diary - ERROR - 保存日记失败: save_mood() takes from 2 to 3 positional arguments but 4 were given
+2026-05-06 00:26:20 - diary - ERROR - 保存日记失败: save_mood() takes from 2 to 3 positional arguments but 4 were given
+2026-05-06 00:26:29 - diary - ERROR - 保存日记失败: save_mood() takes from 2 to 3 positional arguments but 4 were given

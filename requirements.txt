@@ -7,3 +7,4 @@ python-dotenv>=1.0.0
 werkzeug>=3.0.0
 requests>=2.0.0
 gunicorn
+PyQt6>=6.0.0
