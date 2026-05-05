@@ -5,3 +5,4 @@ entries_backup_*
 diary.db
 __pycache__/
 /utils/_pycache_/
+diary.db
