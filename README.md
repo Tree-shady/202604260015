@@ -138,10 +138,6 @@ python migrate.py
 - 将旧版日记文件迁移到数据库
 - 迁移标签和心情记录
 
-默认登录账号：
-- **管理员**: admin / admin123
-- **超级管理员**: superadmin / admin123
-
 ## 运行应用
 
 ### 方式一：桌面图形化模式 (推荐)
@@ -179,6 +175,7 @@ pip install -r requirements.txt
 | werkzeug | >=3.0.0 | Web 工具库 |
 | requests | >=2.0.0 | HTTP 请求库（用于获取每日问候语） |
 | gunicorn | 最新版 | 生产环境 WSGI 服务器 |
+| PyQt6 | 最新版 | 生产环境 GUI 应用 |
 
 ### 可选依赖
 
@@ -219,7 +216,7 @@ pkill -f gunicorn
 
 ### 2. 登录账户
 
-- **管理员账号**：Administrator / huaweiBT@7274
+- **管理员账号**：Administrator
 - **普通用户**：请先注册账号
 
 ### 3. 开始使用
@@ -370,7 +367,7 @@ pkill -f gunicorn
 ├── requirements.txt # 依赖项列表
 ├── .gitignore       # Git 忽略文件
 ├── LICENSE          # 许可证文件
-└── README.md
+└── README.md        # 项目说明文件
 ```
 
 ## 用户角色说明
