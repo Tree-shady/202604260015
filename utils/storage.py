@@ -1,13 +1,36 @@
 from datetime import datetime
 from pathlib import Path
+from collections import OrderedDict
 from .config import DATE_FORMAT, IMAGES_DIR
 from .models import get_session, Entry, Tag, Image
 
 # 标签数据缓存
 _tags_cache = None
 
-# 日记内容缓存（按日期）
-_entry_cache = {}
+# 日记内容缓存（按日期）- 使用有序字典实现LRU缓存
+MAX_CACHE_SIZE = 100
+_entry_cache = OrderedDict()
+
+# 日记列表缓存
+_entries_list_cache = {}
+
+def _get_cached_entry(cache_key):
+    """获取缓存的日记内容，实现LRU机制"""
+    global _entry_cache
+    if cache_key in _entry_cache:
+        # 将访问的项移到末尾（最近使用）
+        _entry_cache.move_to_end(cache_key)
+        return _entry_cache[cache_key]
+    return None
+
+def _set_cached_entry(cache_key, value):
+    """设置日记内容缓存，实现LRU机制"""
+    global _entry_cache
+    _entry_cache[cache_key] = value
+    _entry_cache.move_to_end(cache_key)
+    # 如果缓存超过最大大小，删除最旧的项
+    while len(_entry_cache) > MAX_CACHE_SIZE:
+        _entry_cache.popitem(last=False)
 
 def ensure_dir():
     """确保必要的目录存在"""
@@ -82,21 +105,24 @@ def get_entry_content(date_str, user_id=1):
             tags: 标签列表
             content: 日记内容
     """
-    global _entry_cache
     cache_key = f"{date_str}_{user_id}"
-    if cache_key not in _entry_cache:
-        session = get_session()
-        entry = session.query(Entry).filter_by(date_str=date_str, user_id=user_id).first()
-        if entry:
-            timestamp = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            tags = [tag.name for tag in entry.tags]
-            content = entry.content
-            _entry_cache[cache_key] = (timestamp, tags, content)
-        else:
-            file_path = get_file_path(date_str)
-            if file_path.exists():
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
+    cached = _get_cached_entry(cache_key)
+    if cached:
+        return cached
+    
+    session = get_session()
+    entry = session.query(Entry).filter_by(date_str=date_str, user_id=user_id).first()
+    if entry:
+        timestamp = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        tags = [tag.name for tag in entry.tags]
+        content = entry.content
+        _set_cached_entry(cache_key, (timestamp, tags, content))
+        return (timestamp, tags, content)
+    else:
+        file_path = get_file_path(date_str)
+        if file_path.exists():
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
                 lines = content.split('\n')
                 timestamp = ""
                 tags = []
@@ -108,28 +134,47 @@ def get_entry_content(date_str, user_id=1):
                     lines = lines[1:]
                 content = '\n'.join(lines)
                 _entry_cache[cache_key] = (timestamp, tags, content)
-            else:
-                _entry_cache[cache_key] = ("", [], "")
+        else:
+            _entry_cache[cache_key] = ("", [], "")
 
     return _entry_cache[cache_key]
 
-def clear_entry_cache(date_str=None):
+def clear_entry_cache(date_str=None, user_id=None):
     """清除日记内容缓存"""
     global _entry_cache
-    if date_str:
-        if date_str in _entry_cache:
-            del _entry_cache[date_str]
+    if date_str and user_id:
+        cache_key = f"{date_str}_{user_id}"
+        if cache_key in _entry_cache:
+            del _entry_cache[cache_key]
+    elif date_str:
+        # 删除所有用户的该日期缓存
+        keys_to_delete = [k for k in _entry_cache if k.startswith(f"{date_str}_")]
+        for k in keys_to_delete:
+            del _entry_cache[k]
     else:
         _entry_cache.clear()
+    # 清除日记列表缓存
+    global _entries_list_cache
+    if user_id:
+        if user_id in _entries_list_cache:
+            del _entries_list_cache[user_id]
+    else:
+        _entries_list_cache.clear()
 
 def get_entries(user_id=1):
-    """获取所有日记"""
+    """获取所有日记（带缓存）"""
+    global _entries_list_cache
+    if user_id in _entries_list_cache:
+        return _entries_list_cache[user_id]
+    
     session = get_session()
     entries = session.query(Entry).filter_by(user_id=user_id).order_by(Entry.date_str.desc()).all()
     class MockPath:
         def __init__(self, date_str):
             self.stem = date_str
-    return [MockPath(entry.date_str) for entry in entries]
+    result = [MockPath(entry.date_str) for entry in entries]
+    _entries_list_cache[user_id] = result
+    return result
 
 def save_entry(date_str, content, tags=None, user_id=1):
     """保存日记（通过数据库）

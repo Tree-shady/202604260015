@@ -20,10 +20,10 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(50), unique=True, nullable=False)
+    username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(20), default='user')
-    active = Column(Boolean, default=True)
+    role = Column(String(20), default='user', index=True)
+    active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     password_set_at = Column(DateTime, default=datetime.utcnow)
@@ -35,7 +35,7 @@ class User(Base):
     # 连续打卡相关
     current_streak = Column(Integer, default=0)  # 当前连续打卡天数
     longest_streak = Column(Integer, default=0)  # 最长连续打卡天数
-    last_entry_date = Column(String(10), nullable=True)  # 最后写日记的日期
+    last_entry_date = Column(String(10), nullable=True, index=True)  # 最后写日记的日期
     total_entries = Column(Integer, default=0)  # 总日记数
 
     entries = relationship('Entry', back_populates='user', cascade='all, delete-orphan')
@@ -44,17 +44,17 @@ class Entry(Base):
     __tablename__ = 'entries'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    date_str = Column(String(10), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    date_str = Column(String(10), nullable=False, index=True)
     content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship('User', back_populates='entries')
-    tags = relationship('Tag', secondary=entry_tags, back_populates='entries')
-    mood = relationship('Mood', back_populates='entry', uselist=False, cascade='all, delete-orphan')
-    images = relationship('Image', back_populates='entry', cascade='all, delete-orphan')
+    tags = relationship('Tag', secondary=entry_tags, back_populates='entries', lazy='selectin')
+    mood = relationship('Mood', back_populates='entry', uselist=False, cascade='all, delete-orphan', lazy='selectin')
+    images = relationship('Image', back_populates='entry', cascade='all, delete-orphan', lazy='selectin')
 
 class Tag(Base):
     __tablename__ = 'tags'
@@ -108,18 +108,27 @@ class LoginAttempt(Base):
     success = Column(Boolean, default=False)
 
 engine = None
+_session_factory = None
 
 def init_db(db_url):
-    global engine
-    engine = create_engine(db_url)
+    global engine, _session_factory
+    # 添加连接池配置，提高性能
+    engine = create_engine(
+        db_url,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=3600,
+        echo=False
+    )
     Base.metadata.create_all(engine)
+    _session_factory = sessionmaker(bind=engine)
 
 def get_session():
     if not hasattr(_thread_local, 'session'):
-        if engine is None:
+        if _session_factory is None:
             raise RuntimeError("数据库未初始化，请先调用 init_db()")
-        Session = sessionmaker(bind=engine)
-        _thread_local.session = Session()
+        _thread_local.session = _session_factory()
     return _thread_local.session
 
 def close_db():

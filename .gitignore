@@ -6,3 +6,5 @@ diary.db
 __pycache__/
 /utils/_pycache_/
 diary.db
+data/
+*.log

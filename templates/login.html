@@ -26,6 +26,23 @@
                        placeholder="请输入密码" required>
             </div>
 
+            <div class="mb-3">
+                <label class="form-label">
+                    <i class="bi bi-database me-2"></i>存储位置
+                </label>
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" name="storage" id="storage-local" value="local" checked>
+                    <label class="btn btn-outline-primary" for="storage-local">
+                        <i class="bi bi-hard-drive me-1"></i>本地存储
+                    </label>
+                    <input type="radio" class="btn-check" name="storage" id="storage-remote" value="remote">
+                    <label class="btn btn-outline-primary" for="storage-remote">
+                        <i class="bi bi-cloud me-1"></i>云端存储
+                    </label>
+                </div>
+                <small class="text-muted mt-2 d-block">首次登录后可在设置中更改存储位置</small>
+            </div>
+
             <div class="d-grid gap-2">
                 <button type="submit" class="btn btn-primary btn-lg">
                     <i class="bi bi-box-arrow-in-right me-2"></i>登录

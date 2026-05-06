@@ -86,6 +86,65 @@
                             {% endif %}
                         </div>
 
+                        <!-- 存储设置 -->
+                        <div class="mb-4">
+                            <h5 class="mb-3"><i class="bi bi-database text-primary"></i> 存储设置</h5>
+                            <div class="mb-3">
+                                <label class="form-label">当前存储位置</label>
+                                <div class="btn-group" role="group">
+                                    <input type="radio" class="btn-check" name="storage_location" id="storage-local-setting" value="local" {% if session.get('storage_type') == 'local' %}checked{% endif %}>
+                                    <label class="btn btn-outline-primary" for="storage-local-setting">
+                                        <i class="bi bi-hard-drive me-1"></i>本地存储
+                                    </label>
+                                    <input type="radio" class="btn-check" name="storage_location" id="storage-remote-setting" value="remote" {% if session.get('storage_type') == 'remote' %}checked{% endif %}>
+                                    <label class="btn btn-outline-primary" for="storage-remote-setting">
+                                        <i class="bi bi-cloud me-1"></i>云端存储
+                                    </label>
+                                </div>
+                                <small class="text-muted mt-2 d-block">切换存储位置需要重新登录</small>
+                            </div>
+                            
+                            <div class="border rounded p-3 bg-light">
+                                <h6 class="mb-2">远程数据库配置</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label for="db-type" class="form-label">数据库类型</label>
+                                        <select class="form-select" id="db-type" name="db_type">
+                                            <option value="postgresql" {% if remote_config.get('type') == 'postgresql' %}selected{% endif %}>PostgreSQL</option>
+                                            <option value="mysql" {% if remote_config.get('type') == 'mysql' %}selected{% endif %}>MySQL</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label for="db-host" class="form-label">数据库主机</label>
+                                        <input type="text" class="form-control" id="db-host" name="db_host" placeholder="localhost" value="{{ remote_config.get('host', '') }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="db-port" class="form-label">端口</label>
+                                        <input type="text" class="form-control" id="db-port" name="db_port" placeholder="5432" value="{{ remote_config.get('port', '') }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="db-name" class="form-label">数据库名</label>
+                                        <input type="text" class="form-control" id="db-name" name="db_name" placeholder="diary" value="{{ remote_config.get('database', '') }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="db-user" class="form-label">用户名</label>
+                                        <input type="text" class="form-control" id="db-user" name="db_user" placeholder="user" value="{{ remote_config.get('username', '') }}">
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label for="db-password" class="form-label">密码</label>
+                                        <input type="password" class="form-control" id="db-password" name="db_password" placeholder="输入密码">
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-outline-primary" id="test-db-btn">
+                                        <i class="bi bi-plug me-1"></i> 测试连接
+                                    </button>
+                                    <span id="db-test-result" class="ms-3"></span>
+                                </div>
+                                <small class="text-muted mt-2 d-block">支持 PostgreSQL 和 MySQL 数据库</small>
+                            </div>
+                        </div>
+
                         <!-- 密码设置 -->
                         <div class="mb-4">
                             <h5 class="mb-3"><i class="bi bi-key text-primary"></i> 密码设置</h5>
@@ -106,6 +165,54 @@
                             </a>
                         </div>
                     </form>
+
+                    <script>
+                    document.getElementById('test-db-btn').addEventListener('click', function() {
+                        const btn = this;
+                        const resultSpan = document.getElementById('db-test-result');
+                        
+                        btn.disabled = true;
+                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>测试中...';
+                        resultSpan.innerHTML = '';
+                        
+                        const dbType = document.getElementById('db-type').value;
+                        const dbHost = document.getElementById('db-host').value;
+                        const dbPort = document.getElementById('db-port').value;
+                        const dbName = document.getElementById('db-name').value;
+                        const dbUser = document.getElementById('db-user').value;
+                        const dbPassword = document.getElementById('db-password').value;
+                        
+                        fetch('/api/test-database', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                type: dbType,
+                                host: dbHost,
+                                port: dbPort,
+                                database: dbName,
+                                username: dbUser,
+                                password: dbPassword
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                resultSpan.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.message + '</span>';
+                            } else {
+                                resultSpan.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + data.message + '</span>';
+                            }
+                        })
+                        .catch(error => {
+                            resultSpan.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>请求失败: ' + error.message + '</span>';
+                        })
+                        .finally(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="bi bi-plug me-1"></i> 测试连接';
+                        });
+                    });
+                    </script>
                 </div>
             </div>
         </div>

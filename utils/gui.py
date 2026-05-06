@@ -72,6 +72,15 @@ class LoginDialog(QDialog):
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.password_input)
 
+        # 存储位置选择
+        storage_layout = QHBoxLayout()
+        storage_label = QLabel("存储位置:")
+        storage_layout.addWidget(storage_label)
+        self.storage_combo = QComboBox()
+        self.storage_combo.addItems(["本地存储", "云端存储"])
+        storage_layout.addWidget(self.storage_combo)
+        layout.addLayout(storage_layout)
+
         button_layout = QHBoxLayout()
         self.login_btn = QPushButton("登录")
         self.login_btn.clicked.connect(self.do_login)
@@ -86,14 +95,31 @@ class LoginDialog(QDialog):
     def do_login(self):
         username = self.username_input.text().strip()
         password = self.password_input.text()
+        storage_type = 'remote' if self.storage_combo.currentText() == '云端存储' else 'local'
+
         if not username or not password:
             QMessageBox.warning(self, "错误", "请输入用户名和密码")
             return
+
+        from utils.db_manager import db_manager
+        if storage_type == 'remote' and not db_manager.is_remote_configured():
+            QMessageBox.warning(self, "警告", "远程数据库尚未配置，请先在设置中配置")
+            return
+
+        if storage_type != db_manager.get_current_db_type():
+            try:
+                db_manager.switch_database(storage_type)
+                QMessageBox.information(self, "提示", f"已切换到{'云端' if storage_type == 'remote' else '本地'}存储")
+            except Exception as e:
+                QMessageBox.warning(self, "错误", f"切换存储失败: {str(e)}")
+                return
+
         success, result = authenticate_user(username, password)
         if success:
             self.user_id = result['id']
             self.username = result['username']
             self.user_role = result.get('role', 'user')
+            self.storage_type = storage_type
             self.accept()
         else:
             QMessageBox.warning(self, "登录失败", result)
@@ -101,6 +127,8 @@ class LoginDialog(QDialog):
     def do_register(self):
         username = self.username_input.text().strip()
         password = self.password_input.text()
+        storage_type = 'remote' if self.storage_combo.currentText() == '云端存储' else 'local'
+
         if not username or not password:
             QMessageBox.warning(self, "错误", "请输入用户名和密码")
             return
@@ -110,6 +138,19 @@ class LoginDialog(QDialog):
         if len(password) < 6:
             QMessageBox.warning(self, "错误", "密码至少6个字符")
             return
+
+        from utils.db_manager import db_manager
+        if storage_type == 'remote' and not db_manager.is_remote_configured():
+            QMessageBox.warning(self, "警告", "远程数据库尚未配置，请先在设置中配置")
+            return
+
+        if storage_type != db_manager.get_current_db_type():
+            try:
+                db_manager.switch_database(storage_type)
+            except Exception as e:
+                QMessageBox.warning(self, "错误", f"切换存储失败: {str(e)}")
+                return
+
         success, msg = create_user(username, password)
         if success:
             QMessageBox.information(self, "成功", "注册成功，请登录")
@@ -922,13 +963,13 @@ class EnhancedDiaryApp(QMainWindow):
 
 
 def pyqt_mode():
-    from utils.models import init_db
+    from utils.db_manager import db_manager, init_db
     from utils.storage import ensure_dir
     from utils.auth import init_users
 
     ensure_dir()
     try:
-        init_db('sqlite:///diary.db')
+        init_db()
         init_users()
     except Exception as e:
         logger.error(f"数据库初始化失败: {e}")
@@ -943,7 +984,8 @@ def pyqt_mode():
     window.current_user_id = login.user_id or 1
     window.current_username = login.username or "用户"
     window.current_role = login.user_role or 'user'
-    window.setWindowTitle(f"日记本 - {window.current_username} ({window.current_role})")
+    window.storage_type = getattr(login, 'storage_type', 'local')
+    window.setWindowTitle(f"日记本 - {window.current_username} ({window.current_role}) [{window.storage_type}]")
     window.show()
     sys.exit(app.exec())
 

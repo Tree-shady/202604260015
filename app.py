@@ -8,6 +8,7 @@ import calendar
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+from sqlalchemy.orm import joinedload
 
 # Magic bytes for image validation
 IMAGE_MAGIC = {
@@ -382,10 +383,24 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+        storage = request.form.get('storage', 'local')
 
         if not username or not password:
             flash('请输入用户名和密码', 'danger')
             return redirect(url_for('login'))
+
+        from utils.db_manager import db_manager
+        if storage == 'remote' and not db_manager.is_remote_configured():
+            flash('远程数据库尚未配置，请先在设置中配置', 'warning')
+            return redirect(url_for('login'))
+
+        if storage != db_manager.get_current_db_type():
+            try:
+                db_manager.switch_database(storage)
+                flash(f'已切换到{"云端" if storage == "remote" else "本地"}存储', 'success')
+            except Exception as e:
+                flash(f'切换存储失败: {str(e)}', 'danger')
+                return redirect(url_for('login'))
 
         # 检查是否被锁定
         from utils.auth import check_login_lockout, record_login_failure, clear_login_failure, get_remaining_attempts
@@ -402,6 +417,7 @@ def login():
             session['username'] = result['username']
             session['role'] = result['role']
             session['password_expired'] = result.get('password_expired', False)
+            session['storage_type'] = storage
             session.permanent = True
             flash(f'欢迎回来，{result["username"]}！', 'success')
             
@@ -443,6 +459,7 @@ def register():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
+        storage = request.form.get('storage', 'local')
 
         if not username or not password:
             flash('请输入用户名和密码', 'danger')
@@ -460,11 +477,34 @@ def register():
             flash('两次输入的密码不一致', 'danger')
             return redirect(url_for('register'))
 
+        from utils.db_manager import db_manager
+        if storage == 'remote' and not db_manager.is_remote_configured():
+            flash('远程数据库尚未配置，请先在设置中配置', 'warning')
+            return redirect(url_for('register'))
+
+        if storage != db_manager.get_current_db_type():
+            try:
+                db_manager.switch_database(storage)
+            except Exception as e:
+                flash(f'切换存储失败: {str(e)}', 'danger')
+                return redirect(url_for('register'))
+
         success, message = create_user(username, password)
 
         if success:
-            flash('注册成功，请登录', 'success')
-            return redirect(url_for('login'))
+            from utils.auth import authenticate_user
+            auth_success, result = authenticate_user(username, password)
+            if auth_success:
+                session['user_id'] = result['id']
+                session['username'] = result['username']
+                session['role'] = result['role']
+                session['storage_type'] = storage
+                session.permanent = True
+                flash(f'注册成功！欢迎，{username}！', 'success')
+                return redirect(url_for('index'))
+            else:
+                flash('注册成功，但登录失败，请手动登录', 'warning')
+                return redirect(url_for('login'))
         else:
             flash(message, 'danger')
             return redirect(url_for('register'))
@@ -525,7 +565,13 @@ def index(year=None, month=None):
 
     db_session = get_session()
     current_user_id = session.get('user_id')
-    entries = db_session.query(Entry).filter_by(user_id=current_user_id).order_by(Entry.date_str.desc()).limit(5).all()
+    
+    # 使用 joinedload 预加载关联数据，减少N+1查询
+    entries = db_session.query(Entry).options(
+        joinedload(Entry.tags),
+        joinedload(Entry.mood)
+    ).filter_by(user_id=current_user_id).order_by(Entry.date_str.desc()).limit(5).all()
+    
     tag_data = get_tags()
     calendar_data = get_calendar_data(year, month)
     stats = get_stats()
@@ -542,8 +588,9 @@ def index(year=None, month=None):
         next_month = 1
         next_year += 1
 
+    # 优化：从已加载的最近5篇日记中统计心情（足够展示用）
     mood_stats = {}
-    for entry in db_session.query(Entry).filter_by(user_id=current_user_id).all():
+    for entry in entries:
         if entry.mood:
             mt = entry.mood.mood_type
             mood_stats[mt] = mood_stats.get(mt, 0) + 1
@@ -604,11 +651,113 @@ def settings():
         if session.get('role') in ['admin', 'superadmin']:
             config['greetings']['source'] = request.form.get('greetings_source', 'local')
 
+        # 处理远程数据库配置
+        db_type = request.form.get('db_type', 'postgresql')
+        db_host = request.form.get('db_host', '').strip()
+        db_port = request.form.get('db_port', '').strip()
+        db_name = request.form.get('db_name', '').strip()
+        db_user = request.form.get('db_user', '').strip()
+        db_password = request.form.get('db_password', '')
+
+        from utils.db_manager import db_manager
+        current_remote_config = db_manager.load_config().get('remote', {})
+
+        if any([db_host, db_port, db_name, db_user, db_password]):
+            try:
+                port = int(db_port) if db_port else current_remote_config.get('port', 5432)
+                host = db_host if db_host else current_remote_config.get('host', '')
+                database = db_name if db_name else current_remote_config.get('database', '')
+                username = db_user if db_user else current_remote_config.get('username', '')
+                password = db_password if db_password else current_remote_config.get('password', '')
+                db_type = db_type if db_type else current_remote_config.get('type', 'postgresql')
+
+                if host and database and username:
+                    db_manager.set_remote_config(host, port, database, username, password, db_type)
+                    flash('远程数据库配置已保存', 'success')
+                else:
+                    flash('远程数据库配置不完整，请填写完整信息', 'warning')
+            except Exception as e:
+                flash(f'保存远程数据库配置失败: {str(e)}', 'danger')
+
+        # 处理存储位置切换（需要重新登录才能生效）
+        storage_location = request.form.get('storage_location', 'local')
+        if storage_location != session.get('storage_type', 'local'):
+            from utils.db_manager import db_manager
+            if storage_location == 'remote' and not db_manager.is_remote_configured():
+                flash('远程数据库尚未配置，请先配置远程数据库', 'warning')
+            else:
+                session['storage_type'] = storage_location
+                flash(f'存储位置已设置为{"云端" if storage_location == "remote" else "本地"}，请重新登录生效', 'info')
+
         save_config(config)
         flash('设置已保存', 'success')
         return redirect(url_for('settings'))
 
-    return render_template('settings.html', config=config)
+    from utils.db_manager import db_manager
+    remote_config = db_manager.load_config().get('remote', {})
+    return render_template('settings.html', config=config, remote_config=remote_config)
+
+@app.route('/api/test-database', methods=['POST'])
+@login_required
+def test_database():
+    """测试数据库连接"""
+    if session.get('role') not in ['admin', 'superadmin']:
+        return jsonify({'success': False, 'message': '只有管理员可以测试数据库连接'}), 403
+
+    db_host = request.json.get('host', '').strip()
+    db_port = request.json.get('port', '').strip()
+    db_name = request.json.get('database', '').strip()
+    db_user = request.json.get('username', '').strip()
+    db_password = request.json.get('password', '')
+    db_type = request.json.get('type', 'postgresql')
+
+    if not all([db_host, db_name, db_user]):
+        return jsonify({'success': False, 'message': '请填写完整的数据库信息'}), 400
+
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.exc import OperationalError
+        from urllib.parse import quote_plus
+
+        port = int(db_port) if db_port else 5432
+
+        encoded_password = quote_plus(db_password)
+
+        if db_type == 'postgresql':
+            db_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{port}/{db_name}"
+            engine = create_engine(db_url, connect_args={'connect_timeout': 10})
+        elif db_type == 'mysql':
+            db_url = f"mysql+pymysql://{db_user}:{encoded_password}@{db_host}:{port}/{db_name}"
+            engine = create_engine(db_url, connect_args={'connect_timeout': 10})
+        else:
+            return jsonify({'success': False, 'message': '不支持的数据库类型'}), 400
+
+        conn = engine.connect()
+        conn.close()
+        engine.dispose()
+
+        return jsonify({
+            'success': True,
+            'message': f'成功连接到 {db_type} 数据库',
+            'info': {
+                'host': db_host,
+                'port': port,
+                'database': db_name,
+                'type': db_type
+            }
+        }), 200
+
+    except OperationalError as e:
+        error_msg = str(e).split('\n')[0]
+        return jsonify({
+            'success': False,
+            'message': f'数据库连接失败: {error_msg}'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'连接错误: {str(e)}'
+        }), 500
 
 @app.route('/new', methods=['GET', 'POST'])
 @login_required
@@ -1619,7 +1768,7 @@ def run_production_server():
 
 def run_development_server():
     """运行开发服务器"""
-    host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    host = os.environ.get('FLASK_HOST', '0.0.0.0')
     port = int(os.environ.get('FLASK_PORT', 5000))
 
     logger.info(f"启动开发服务器 - 地址: http://{host}:{port}")
