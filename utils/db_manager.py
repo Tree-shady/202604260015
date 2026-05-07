@@ -144,5 +144,6 @@ def init_db(db_url=None):
         db_type = db_manager.get_current_db_type()
         engine = db_manager.init_database(db_type)
     
-    from utils.models import Base
+    from utils.models import Base, init_db as models_init_db
     Base.metadata.create_all(engine)
+    models_init_db('sqlite:///diary.db')

@@ -25,6 +25,7 @@
 
                     <div class="d-flex gap-2 mt-4">
                         <form method="POST" action="{{ url_for('delete_entry', date_str=date_str) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-danger">
                                 <i class="bi bi-trash"></i> 确认删除
                             </button>

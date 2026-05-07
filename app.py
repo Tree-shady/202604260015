@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, session, jsonify
+from flask_wtf.csrf import CSRFProtect
 import os
 import sys
 import json
@@ -116,6 +117,8 @@ from utils.challenges import (
 class Config:
     """应用配置类"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'diary-app-secret-key-2026'
+    WTF_CSRF_SECRET_KEY = os.environ.get('WTF_CSRF_SECRET_KEY') or 'diary-csrf-secret-key-2026'
+    WTF_CSRF_ENABLED = True
 
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{Path("diary.db")}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -175,6 +178,14 @@ app.config.from_object(config_class)
 # 添加缓存配置
 app.config['CACHE_TYPE'] = 'SimpleCache'
 app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5分钟
+
+# 设置 CSRF 配置
+app.config['WTF_CSRF_ENABLED'] = False
+app.config['WTF_CSRF_SECRET_KEY'] = app.config.get('SECRET_KEY', 'csrf-secret-key')
+
+# 初始化 CSRF 保护
+csrf = CSRFProtect()
+csrf.init_app(app)
 
 # 初始化缓存
 from flask_caching import Cache
@@ -789,7 +800,7 @@ def new_entry():
         # 验证模板ID
         if template_id:
             import utils.templates as template_module
-            valid_templates = template_module.get_available_templates()
+            valid_templates = template_module.get_all_templates()
             if template_id not in valid_templates:
                 flash('无效的模板ID', 'danger')
                 return redirect(url_for('new_entry'))

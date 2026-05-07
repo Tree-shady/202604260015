@@ -9,6 +9,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" class="mb-4" id="searchForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="keyword" class="form-label">关键词</label>
