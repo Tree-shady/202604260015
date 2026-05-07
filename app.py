@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy.orm import joinedload
+from utils.rate_limit import rate_limiter, rate_limit
+from utils.favorites import get_favorites, is_favorited, add_favorite, remove_favorite, get_favorite_count
+from utils.writing_prompts import get_random_prompt, get_prompt_by_mood, get_all_categories, get_seasonal_prompt, get_time_based_prompt, get_prompts_by_category
 
 # Magic bytes for image validation
 IMAGE_MAGIC = {
@@ -480,8 +483,24 @@ def register():
             flash('用户名需要3-50个字符', 'danger')
             return redirect(url_for('register'))
 
-        if len(password) < 6 or len(password) > 128:
-            flash('密码需要6-128个字符', 'danger')
+        if len(password) < 8:
+            flash('密码至少需要8个字符', 'danger')
+            return redirect(url_for('register'))
+
+        if not any(c.isupper() for c in password):
+            flash('密码必须包含大写字母', 'danger')
+            return redirect(url_for('register'))
+
+        if not any(c.islower() for c in password):
+            flash('密码必须包含小写字母', 'danger')
+            return redirect(url_for('register'))
+
+        if not any(c.isdigit() for c in password):
+            flash('密码必须包含数字', 'danger')
+            return redirect(url_for('register'))
+
+        if len(password) > 128:
+            flash('密码不能超过128个字符', 'danger')
             return redirect(url_for('register'))
 
         if password != confirm_password:
@@ -549,6 +568,22 @@ def change_password():
 
         if new_password != confirm_password:
             flash('两次输入的新密码不一致', 'danger')
+            return redirect(url_for('change_password'))
+
+        if len(new_password) < 8:
+            flash('新密码至少需要8个字符', 'danger')
+            return redirect(url_for('change_password'))
+
+        if not any(c.isupper() for c in new_password):
+            flash('新密码必须包含大写字母', 'danger')
+            return redirect(url_for('change_password'))
+
+        if not any(c.islower() for c in new_password):
+            flash('新密码必须包含小写字母', 'danger')
+            return redirect(url_for('change_password'))
+
+        if not any(c.isdigit() for c in new_password):
+            flash('新密码必须包含数字', 'danger')
             return redirect(url_for('change_password'))
 
         from utils.auth import change_password as auth_change_password
@@ -1552,6 +1587,7 @@ def import_data():
 
 # 通知相关API路由
 @app.route('/api/notifications')
+@rate_limit(max_requests=30, window=60)
 def get_notifications_api():
     """获取通知列表API"""
     from utils.notification import get_notifications, get_unread_count
@@ -1741,6 +1777,90 @@ def admin_reset_password(username):
     
     return redirect(url_for('admin_panel'))
 
+# 收藏功能 API
+@app.route('/api/favorites')
+@login_required
+def get_favorites_api():
+    """获取收藏列表"""
+    user_id = session.get('user_id')
+    favorites = get_favorites(user_id)
+    return jsonify(favorites)
+
+@app.route('/api/favorites/<date_str>')
+@login_required
+def check_favorite_api(date_str):
+    """检查是否已收藏"""
+    user_id = session.get('user_id')
+    return jsonify({'favorited': is_favorited(user_id, date_str)})
+
+@app.route('/api/favorites/<date_str>', methods=['POST'])
+@login_required
+def add_favorite_api(date_str):
+    """添加收藏"""
+    try:
+        from flask_wtf.csrf import validate_csrf
+        validate_csrf(request.headers.get('X-CSRF-Token') or request.form.get('csrf_token'))
+    except Exception:
+        return jsonify({'error': 'CSRF token missing or invalid'}), 400
+    
+    user_id = session.get('user_id')
+    title = request.json.get('title', '') if request.is_json else request.form.get('title', '')
+    success = add_favorite(user_id, date_str, title)
+    return jsonify({'success': success})
+
+@app.route('/api/favorites/<date_str>', methods=['DELETE'])
+@login_required
+def remove_favorite_api(date_str):
+    """移除收藏"""
+    try:
+        from flask_wtf.csrf import validate_csrf
+        validate_csrf(request.headers.get('X-CSRF-Token') or request.form.get('csrf_token'))
+    except Exception:
+        return jsonify({'error': 'CSRF token missing or invalid'}), 400
+    
+    user_id = session.get('user_id')
+    success = remove_favorite(user_id, date_str)
+    return jsonify({'success': success})
+
+# 写作提示 API
+@app.route('/api/prompts')
+@login_required
+def get_prompts_api():
+    """获取写作提示"""
+    category = request.args.get('category', 'daily')
+    mood = request.args.get('mood', '')
+    use_seasonal = request.args.get('seasonal', 'false').lower() == 'true'
+    use_time_based = request.args.get('time_based', 'false').lower() == 'true'
+    
+    if mood:
+        prompt = get_prompt_by_mood(mood)
+    elif use_seasonal:
+        prompt = get_seasonal_prompt()
+    elif use_time_based:
+        prompt = get_time_based_prompt()
+    else:
+        prompt = get_random_prompt(category)
+    
+    return jsonify({
+        'prompt': prompt,
+        'categories': get_all_categories()
+    })
+
+@app.route('/api/prompts/categories')
+@login_required
+def get_prompt_categories_api():
+    """获取所有提示分类"""
+    return jsonify(get_all_categories())
+
+@app.route('/api/prompts/batch')
+@login_required
+def get_batch_prompts_api():
+    """批量获取提示"""
+    category = request.args.get('category', 'daily')
+    count = int(request.args.get('count', 3))
+    prompts = get_prompts_by_category(category, count)
+    return jsonify(prompts)
+
 def run_production_server():
     """运行生产服务器"""
     if not os.environ.get('SECRET_KEY'):
@@ -1793,6 +1913,11 @@ def run_development_server():
     app.run(host=host, port=port, debug=True)
 
 if __name__ == '__main__':
+    from utils.changelog import changelog_manager, record_update
+
+    version_info = changelog_manager.get_version()
+    logger.info(f"应用启动 - 版本: v{version_info.get('version', '1.0.0')}, Build #{version_info.get('build_number', 1)}")
+
     env = get_env()
 
     if env == 'production':

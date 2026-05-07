@@ -26,6 +26,23 @@
             --info-color: #3b82f6;
         }
 
+        [data-theme="dark"] {
+            --primary-color: #10b981;
+            --primary-light: #34d399;
+            --secondary-color: #94a3b8;
+            --accent-color: #fbbf24;
+            --bg-color: #0f172a;
+            --sidebar-bg: #1e293b;
+            --card-bg: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --success-color: #10b981;
+            --warning-color: #fbbf24;
+            --danger-color: #f87171;
+            --info-color: #60a5fa;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -668,6 +685,20 @@
             .user-menu {
                 justify-content: space-between;
             }
+
+            .theme-toggle {
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                padding: 0.5rem;
+                color: var(--text-secondary);
+                font-size: 1.25rem;
+                transition: color 0.3s ease;
+            }
+
+            .theme-toggle:hover {
+                color: var(--primary-color);
+            }
         }
     </style>
 </head>
@@ -752,6 +783,9 @@
                     <button type="submit" style="display: none;"></button>
                 </form>
                 <div class="user-menu">
+                    <button class="theme-toggle" id="themeToggle" title="切换主题">
+                        <i class="bi bi-moon-fill" id="themeIcon"></i>
+                    </button>
                     <div class="notification dropdown">
                         <a href="#" class="notification-link" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-bell"></i>
@@ -971,6 +1005,36 @@
             if (days < 7) return `${days}天前`;
             return date.toLocaleDateString();
         }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('themeIcon');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+            }
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', toggleTheme);
+            }
+        });
     </script>
 </body>
 </html>

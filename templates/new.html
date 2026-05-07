@@ -79,6 +79,42 @@
                                 </button>
                             </div>
                         </div>
+                        
+                        <!-- AI写作提示 -->
+                        <div class="mb-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="card-title mb-0">
+                                            <i class="bi bi-lightbulb text-warning me-1"></i>
+                                            写作灵感
+                                        </h6>
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-outline-secondary" id="nextPromptBtn" title="换一个">
+                                                <i class="bi bi-shuffle"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-primary" id="insertPromptBtn" title="插入">
+                                                <i class="bi bi-arrow-down-left-circle"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p class="card-text mb-0" id="writingPrompt" style="font-style: italic; color: #666;">
+                                        点击"换一个"获取写作灵感...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 提示分类选择 -->
+                        <div class="mb-3">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm prompt-category active" data-category="daily">日常</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm prompt-category" data-category="reflection">反思</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm prompt-category" data-category="creative">创意</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm prompt-category" data-category="gratitude">感恩</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm prompt-category" data-category="seasonal">季节</button>
+                            </div>
+                        </div>
                         <div class="mb-4">
                             <label for="content" class="form-label">
                                 <i class="bi bi-file-text text-primary me-1"></i>内容
@@ -181,6 +217,13 @@
             const templateSelect = document.getElementById('template');
             const uploadImageBtn = document.getElementById('uploadImageBtn');
             const imageUploadModal = new bootstrap.Modal(document.getElementById('imageUploadModal'));
+            const nextPromptBtn = document.getElementById('nextPromptBtn');
+            const insertPromptBtn = document.getElementById('insertPromptBtn');
+            const writingPromptElement = document.getElementById('writingPrompt');
+            const promptCategoryBtns = document.querySelectorAll('.prompt-category');
+            
+            let currentCategory = 'daily';
+            let currentPrompt = '';
 
             // Update word count
             function updateWordCount() {
@@ -191,6 +234,63 @@
 
             quill.on('text-change', updateWordCount);
             updateWordCount();
+            
+            // Writing prompt functions
+            function loadPrompt(category = 'daily') {
+                let url = `/api/prompts?category=${encodeURIComponent(category)}`;
+                if (category === 'seasonal') {
+                    url = `/api/prompts?seasonal=true`;
+                } else if (category === 'time') {
+                    url = `/api/prompts?time_based=true`;
+                }
+                
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.prompt) {
+                            currentPrompt = data.prompt;
+                            writingPromptElement.textContent = currentPrompt;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('获取提示失败:', error);
+                        writingPromptElement.textContent = '加载提示失败，请稍后再试';
+                    });
+            }
+            
+            function insertPrompt() {
+                if (currentPrompt) {
+                    const range = quill.getSelection(true);
+                    quill.insertText(range.index, currentPrompt + '\n\n');
+                    quill.setSelection(range.index + currentPrompt.length + 2);
+                }
+            }
+            
+            // Prompt category buttons
+            promptCategoryBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    promptCategoryBtns.forEach(b => b.classList.remove('active', 'btn-primary'));
+                    promptCategoryBtns.forEach(b => b.classList.add('btn-outline-secondary'));
+                    this.classList.add('active', 'btn-primary');
+                    this.classList.remove('btn-outline-secondary');
+                    currentCategory = this.dataset.category;
+                    loadPrompt(currentCategory);
+                });
+            });
+            
+            // Load initial prompt
+            loadPrompt(currentCategory);
+            
+            // Prompt button listeners
+            if (nextPromptBtn) {
+                nextPromptBtn.addEventListener('click', function() {
+                    loadPrompt(currentCategory);
+                });
+            }
+            
+            if (insertPromptBtn) {
+                insertPromptBtn.addEventListener('click', insertPrompt);
+            }
 
             // Form submit - sync Quill content to hidden input
             diaryForm.addEventListener('submit', function() {
