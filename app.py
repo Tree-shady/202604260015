@@ -183,8 +183,9 @@ app.config['CACHE_TYPE'] = 'SimpleCache'
 app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5分钟
 
 # 设置 CSRF 配置
-app.config['WTF_CSRF_ENABLED'] = False
+app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_SECRET_KEY'] = app.config.get('SECRET_KEY', 'csrf-secret-key')
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600
 
 # 初始化 CSRF 保护
 csrf = CSRFProtect()
@@ -392,6 +393,7 @@ get_stats = cache.memoize(timeout=300)(get_stats)
 
 # 用户认证路由
 @app.route('/login', methods=['GET', 'POST'])
+@rate_limit(max_requests=10, window=60)
 def login():
     """用户登录"""
     if request.method == 'POST':
@@ -467,6 +469,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
+@rate_limit(max_requests=5, window=180)
 def register():
     """用户注册"""
     if request.method == 'POST':
@@ -1795,6 +1798,7 @@ def check_favorite_api(date_str):
 
 @app.route('/api/favorites/<date_str>', methods=['POST'])
 @login_required
+@rate_limit(max_requests=20, window=60)
 def add_favorite_api(date_str):
     """添加收藏"""
     try:
@@ -1810,6 +1814,7 @@ def add_favorite_api(date_str):
 
 @app.route('/api/favorites/<date_str>', methods=['DELETE'])
 @login_required
+@rate_limit(max_requests=20, window=60)
 def remove_favorite_api(date_str):
     """移除收藏"""
     try:

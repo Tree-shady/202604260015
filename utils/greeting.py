@@ -6,8 +6,11 @@
 
 import random
 import requests
+import logging
 from datetime import datetime
 from .config import get_config
+
+logger = logging.getLogger(__name__)
 
 # 本地问候语库
 LOCAL_GREETINGS = [
@@ -133,7 +136,7 @@ def get_api_greeting(source_index=0):
                 "author": source["extract_author"](data)
             }
     except Exception as e:
-        print(f"API问候语获取失败: {e}")
+        logger.error(f"API问候语获取失败: {e}")
     
     return None
 

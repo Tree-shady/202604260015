@@ -4,9 +4,12 @@
 提供连续写日记的统计和激励功能
 """
 
+import logging
 from datetime import datetime, timedelta
 from .config import DATE_FORMAT
 from .models import User, Entry, get_session
+
+logger = logging.getLogger(__name__)
 
 
 def get_yesterday_str():
@@ -81,7 +84,7 @@ def update_streak_on_entry(user_id, entry_date):
         }
     except Exception as e:
         session.rollback()
-        print(f"更新打卡统计时出错: {e}")
+        logger.error(f"更新打卡统计时出错: {e}")
         return None
 
 
