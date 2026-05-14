@@ -50,13 +50,19 @@
             box-sizing: border-box;
         }
 
+        html {
+            font-size: clamp(12px, 2vw, 16px);
+        }
+
         body {
             font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: var(--bg-color);
             color: var(--text-primary);
             min-height: 100vh;
-            font-size: 0.9375rem;
+            font-size: 1rem;
             line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .app-container {
@@ -80,22 +86,22 @@
         }
 
         .logo {
-            padding: 0 1.5rem 1.5rem;
+            padding: 0 clamp(1rem, 2vw, 1.5rem) clamp(1rem, 2vw, 1.5rem);
             border-bottom: 1px solid var(--border-color);
-            margin-bottom: 1rem;
+            margin-bottom: clamp(0.75rem, 1.5vw, 1rem);
         }
 
         .logo h1 {
-            font-size: 1.25rem;
+            font-size: clamp(1rem, 2vw, 1.25rem);
             font-weight: 700;
             color: var(--primary-color);
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: clamp(0.3rem, 1vw, 0.5rem);
         }
 
         .logo i {
-            font-size: 1.25rem;
+            font-size: clamp(1rem, 2vw, 1.25rem);
         }
 
         .nav-menu {
@@ -103,20 +109,20 @@
         }
 
         .nav-item {
-            margin-bottom: 0.25rem;
+            margin-bottom: clamp(0.15rem, 0.5vw, 0.25rem);
         }
 
         .nav-link {
             display: flex;
             align-items: center;
-            gap: 0.875rem;
-            padding: 0.625rem 1.5rem;
+            gap: clamp(0.5rem, 1.5vw, 0.875rem);
+            padding: clamp(0.4rem, 1vw, 0.625rem) clamp(1rem, 2vw, 1.5rem);
             color: var(--text-secondary);
             text-decoration: none;
             transition: all 0.3s ease;
-            border-radius: 0 10px 10px 0;
-            margin-right: 1rem;
-            font-size: 0.9375rem;
+            border-radius: 0 clamp(8px, 1.5vw, 10px) clamp(8px, 1.5vw, 10px) 0;
+            margin-right: clamp(0.75rem, 1.5vw, 1rem);
+            font-size: clamp(0.8rem, 1.8vw, 0.9375rem);
         }
 
         .nav-link:hover {
@@ -131,7 +137,7 @@
         }
 
         .nav-link i {
-            font-size: 1.25rem;
+            font-size: clamp(1rem, 2vw, 1.25rem);
         }
 
         .main-content {
@@ -198,7 +204,7 @@
         }
 
         .notification i {
-            font-size: 1.25rem;
+            font-size: clamp(1rem, 2vw, 1.25rem);
             color: var(--text-secondary);
         }
 
@@ -208,10 +214,10 @@
             right: -5px;
             background: var(--danger-color);
             color: white;
-            font-size: 0.75rem;
+            font-size: clamp(0.65rem, 1.5vw, 0.75rem);
             font-weight: 600;
-            min-width: 18px;
-            height: 18px;
+            min-width: clamp(14px, 2vw, 18px);
+            height: clamp(14px, 2vw, 18px);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -224,8 +230,8 @@
         }
 
         .notification-dropdown {
-            width: 320px;
-            max-height: 400px;
+            width: clamp(280px, 50vw, 320px);
+            max-height: clamp(350px, 60vh, 400px);
             overflow-y: auto;
         }
 
@@ -234,15 +240,16 @@
             justify-content: space-between;
             align-items: center;
             font-weight: 600;
+            font-size: clamp(0.8rem, 1.8vw, 0.875rem);
         }
 
         .notification-dropdown .notification-list {
-            max-height: 280px;
+            max-height: clamp(240px, 50vh, 280px);
             overflow-y: auto;
         }
 
         .notification-item {
-            padding: 0.75rem 1rem;
+            padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
             border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background-color 0.2s;
@@ -258,14 +265,14 @@
 
         .notification-item-title {
             font-weight: 600;
-            margin-bottom: 0.25rem;
-            font-size: 0.875rem;
+            margin-bottom: clamp(0.15rem, 0.5vw, 0.25rem);
+            font-size: clamp(0.75rem, 1.8vw, 0.875rem);
         }
 
         .notification-item-message {
-            font-size: 0.8125rem;
+            font-size: clamp(0.7rem, 1.6vw, 0.8125rem);
             color: var(--text-secondary);
-            margin-bottom: 0.25rem;
+            margin-bottom: clamp(0.15rem, 0.5vw, 0.25rem);
             display: -webkit-box;
             line-clamp: 2;
             -webkit-line-clamp: 2;
@@ -274,7 +281,7 @@
         }
 
         .notification-item-time {
-            font-size: 0.75rem;
+            font-size: clamp(0.65rem, 1.5vw, 0.75rem);
             color: var(--text-muted);
         }
 
@@ -381,6 +388,15 @@
             flex: 1;
             padding: 1.5rem;
             overflow-y: auto;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        @media (max-width: 1200px) {
+            .page-content {
+                max-width: 100%;
+            }
         }
 
         .card {
@@ -531,7 +547,7 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
             margin-bottom: 1.5rem;
         }
@@ -540,7 +556,7 @@
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 1.5rem;
+            padding: 1rem 1.25rem;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         }
 
@@ -875,43 +891,6 @@
             return originalFetch(url, options);
         };
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const navLinks = document.querySelectorAll('.nav-link');
-            navLinks.forEach(link => {
-                if (link.href === window.location.href) {
-                    link.classList.add('active');
-                }
-            });
-
-            loadNotifications();
-
-            document.getElementById('markAllRead')?.addEventListener('click', function(e) {
-                e.preventDefault();
-                markAllNotificationsRead();
-            });
-
-            document.getElementById('clearAllNotifications')?.addEventListener('click', function(e) {
-                e.preventDefault();
-                clearAllNotifications();
-            });
-
-        const toastElements = document.querySelectorAll('.toast');
-        toastElements.forEach(function(toastElement) {
-            const toast = new bootstrap.Toast(toastElement, {
-                delay: 5000
-            });
-            toast.show();
-        });
-
-        {% if session.get('password_expired') %}
-        setTimeout(function() {
-            if (confirm('密码已过期，请修改密码！\n\n您可以选择现在修改密码，或稍后再修改。')) {
-                window.location.href = '{{ url_for('change_password') }}';
-            }
-        }, 1000);
-        {% endif %}
-        });
-
         async function loadNotifications() {
             try {
                 const response = await fetch('/api/notifications?limit=50');
@@ -1048,6 +1027,41 @@
             if (themeToggle) {
                 themeToggle.addEventListener('click', toggleTheme);
             }
+
+            const navLinks = document.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                if (link.href === window.location.href) {
+                    link.classList.add('active');
+                }
+            });
+
+            loadNotifications();
+
+            document.getElementById('markAllRead')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                markAllNotificationsRead();
+            });
+
+            document.getElementById('clearAllNotifications')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                clearAllNotifications();
+            });
+
+            const toastElements = document.querySelectorAll('.toast');
+            toastElements.forEach(function(toastElement) {
+                const toast = new bootstrap.Toast(toastElement, {
+                    delay: 5000
+                });
+                toast.show();
+            });
+
+            {% if session.get('password_expired') %}
+            setTimeout(function() {
+                if (confirm('密码已过期，请修改密码！\n\n您可以选择现在修改密码，或稍后再修改。')) {
+                    window.location.href = '{{ url_for('change_password') }}';
+                }
+            }, 1000);
+            {% endif %}
         });
     </script>
 </body>

@@ -1,12 +1,32 @@
 {% extends 'base_no_auth.html' %}
 
 {% block content %}
+<!-- 启动加载动画 -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-content">
+        <div class="loading-logo">
+            <i class="bi bi-book"></i>
+        </div>
+        <div class="loading-text">日记本</div>
+        <div class="loading-progress">
+            <div class="loading-spinner"></div>
+        </div>
+        <div class="loading-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </div>
+</div>
+
 <div class="auth-container">
-    <div class="auth-card">
+    <div class="auth-card" id="authCard">
         <div class="auth-header">
-            <h1><i class="bi bi-book"></i></h1>
-            <h2>注册账户</h2>
-            <p>创建新账户，开始记录您的日记</p>
+            <h1 class="logo-icon">
+                <i class="bi bi-book"></i>
+            </h1>
+            <h2 class="title-fade">注册账户</h2>
+            <p class="subtitle-fade">创建新账户，开始记录您的日记</p>
         </div>
 
         <form method="POST" class="auth-form">
@@ -66,98 +86,327 @@
             </div>
 
             <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary btn-lg">
-                    <i class="bi bi-person-plus me-2"></i>注册
+                <button type="submit" class="btn btn-primary btn-lg btn-animate" id="registerBtn">
+                    <span class="btn-text">
+                        <i class="bi bi-person-plus me-2"></i>注册
+                    </span>
+                    <span class="btn-loader">
+                        <div class="spinner-border spinner-border-sm me-2"></div>注册中...
+                    </span>
                 </button>
             </div>
         </form>
 
-        <div class="auth-footer">
+        <div class="auth-footer footer-fade">
             <p>已有账户？ <a href="{{ url_for('login') }}">立即登录</a></p>
         </div>
     </div>
 </div>
 
 <style>
+    /* 启动加载动画样式 */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    .loading-overlay.hidden {
+        opacity: 0;
+        visibility: hidden;
+    }
+
+    .loading-content {
+        text-align: center;
+        color: white;
+    }
+
+    .loading-logo {
+        font-size: clamp(60px, 12vw, 80px);
+        margin-bottom: clamp(15px, 3vw, 20px);
+        animation: logoBounce 1s ease infinite;
+    }
+
+    @keyframes logoBounce {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-15px) rotate(-5deg); }
+        50% { transform: translateY(0) rotate(0deg); }
+        75% { transform: translateY(-8px) rotate(5deg); }
+    }
+
+    .loading-text {
+        font-size: clamp(24px, 5vw, 32px);
+        font-weight: 700;
+        margin-bottom: clamp(20px, 4vw, 30px);
+        letter-spacing: 2px;
+        animation: textPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes textPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(1.05); }
+    }
+
+    .loading-progress {
+        margin-bottom: clamp(15px, 3vw, 20px);
+    }
+
+    .loading-spinner {
+        width: clamp(40px, 8vw, 50px);
+        height: clamp(40px, 8vw, 50px);
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .loading-dots {
+        display: flex;
+        justify-content: center;
+        gap: clamp(5px, 1.5vw, 8px);
+    }
+
+    .loading-dots span {
+        width: clamp(10px, 2vw, 12px);
+        height: clamp(10px, 2vw, 12px);
+        background: white;
+        border-radius: 50%;
+        animation: dotBounce 1.4s ease-in-out infinite;
+    }
+
+    .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+    .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes dotBounce {
+        0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+        40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* 认证容器样式 */
     .auth-container {
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px;
+        padding: clamp(10px, 3vw, 20px);
     }
 
+    /* 认证卡片入场动画 */
     .auth-card {
         background: white;
-        border-radius: 20px;
+        border-radius: clamp(15px, 3vw, 20px);
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-        padding: 40px;
+        padding: clamp(25px, 5vw, 40px);
         width: 100%;
-        max-width: 420px;
+        max-width: clamp(320px, 90vw, 420px);
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+        transition: all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    .auth-card.visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
     }
 
     .auth-header {
         text-align: center;
-        margin-bottom: 30px;
+        margin-bottom: clamp(20px, 4vw, 30px);
     }
 
-    .auth-header h1 {
-        font-size: 48px;
+    .auth-header .logo-icon {
+        font-size: clamp(36px, 8vw, 48px);
         color: #667eea;
-        margin-bottom: 10px;
+        margin-bottom: clamp(8px, 2vw, 10px);
+        opacity: 0;
+        transform: scale(0) rotate(-180deg);
+        transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        transition-delay: 0.1s;
     }
 
-    .auth-header h2 {
-        font-size: 24px;
+    .auth-card.visible .logo-icon {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
+
+    .auth-header .title-fade {
+        font-size: clamp(18px, 4vw, 24px);
         color: #333;
-        margin-bottom: 8px;
+        margin-bottom: clamp(6px, 1.5vw, 8px);
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.5s ease;
+        transition-delay: 0.25s;
     }
 
-    .auth-header p {
-        color: #666;
-        font-size: 14px;
+    .auth-card.visible .title-fade {
+        opacity: 1;
+        transform: translateY(0);
     }
+
+    .auth-header .subtitle-fade {
+        color: #666;
+        font-size: clamp(12px, 2.5vw, 14px);
+        opacity: 0;
+        transform: translateY(-15px);
+        transition: all 0.5s ease;
+        transition-delay: 0.35s;
+    }
+
+    .auth-card.visible .subtitle-fade {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* 表单元素入场动画 */
+    .auth-form .mb-3 {
+        opacity: 0;
+        transform: translateX(-20px);
+        transition: all 0.5s ease;
+    }
+
+    .auth-card.visible .mb-3:nth-child(1) { transition-delay: 0.45s; opacity: 1; transform: translateX(0); }
+    .auth-card.visible .mb-3:nth-child(2) { transition-delay: 0.55s; opacity: 1; transform: translateX(0); }
+    .auth-card.visible .mb-3:nth-child(3) { transition-delay: 0.65s; opacity: 1; transform: translateX(0); }
+    .auth-card.visible .mb-3:nth-child(4) { transition-delay: 0.75s; opacity: 1; transform: translateX(0); }
+    .auth-card.visible .mb-3:nth-child(5) { transition-delay: 0.85s; opacity: 1; transform: translateX(0); }
 
     .auth-form .form-label {
         font-weight: 500;
         color: #333;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-form .form-control {
-        padding: 12px 15px;
-        border-radius: 10px;
+        padding: clamp(10px, 2vw, 12px) clamp(12px, 2.5vw, 15px);
+        border-radius: clamp(8px, 1.5vw, 10px);
         border: 2px solid #e0e0e0;
         transition: all 0.3s;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-form .form-control:focus {
         border-color: #667eea;
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        transform: scale(1.02);
     }
 
+    /* 按钮动画样式 */
+    .btn-animate {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        font-size: clamp(14px, 3vw, 16px);
+    }
+
+    .btn-animate::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        transition: width 0.6s ease, height 0.6s ease;
+    }
+
+    .btn-animate:hover::before {
+        width: 300px;
+        height: 300px;
+    }
+
+    .btn-animate:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-animate:active {
+        transform: translateY(0);
+    }
+
+    .btn-animate.loading .btn-text {
+        opacity: 0;
+    }
+
+    .btn-animate .btn-loader {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0;
+        white-space: nowrap;
+    }
+
+    .btn-animate.loading .btn-loader {
+        opacity: 1;
+    }
+
+    /* 底部动画 */
     .auth-footer {
         text-align: center;
-        margin-top: 25px;
-        padding-top: 20px;
+        margin-top: clamp(20px, 4vw, 25px);
+        padding-top: clamp(15px, 3vw, 20px);
         border-top: 1px solid #eee;
+        opacity: 0;
+        transform: translateY(15px);
+        transition: all 0.5s ease;
+        transition-delay: 0.95s;
+        font-size: clamp(12px, 2.5vw, 14px);
+    }
+
+    .auth-card.visible .auth-footer {
+        opacity: 1;
+        transform: translateY(0);
     }
 
     .auth-footer p {
         color: #666;
         margin: 0;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-footer a {
         color: #667eea;
         font-weight: 600;
         text-decoration: none;
+        position: relative;
+        transition: all 0.3s ease;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
-    .auth-footer a:hover {
-        text-decoration: underline;
+    .auth-footer a::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background: #667eea;
+        transition: width 0.3s ease;
     }
 
+    .auth-footer a:hover::after {
+        width: 100%;
+    }
+
+    /* 密码强度样式 */
     .password-strength .strength-bar {
         height: 4px;
         background: #e0e0e0;
@@ -173,7 +422,7 @@
     }
 
     .strength-text {
-        font-size: 12px;
+        font-size: clamp(11px, 2vw, 12px);
         margin-top: 4px;
     }
 
@@ -188,7 +437,7 @@
     .strength-strong .strength-text { color: #10b981; }
 
     .password-requirements .requirement {
-        font-size: 12px;
+        font-size: clamp(11px, 2vw, 12px);
         color: #999;
         margin-bottom: 2px;
     }
@@ -202,7 +451,7 @@
     }
 
     .match-feedback {
-        font-size: 12px;
+        font-size: clamp(11px, 2vw, 12px);
         margin-top: 4px;
     }
 
@@ -211,6 +460,31 @@
 </style>
 
 <script>
+// 启动加载动画
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        const overlay = document.getElementById('loadingOverlay');
+        const authCard = document.getElementById('authCard');
+        
+        overlay.classList.add('hidden');
+        
+        setTimeout(function() {
+            authCard.classList.add('visible');
+        }, 300);
+    }, 1800);
+});
+
+// 注册按钮加载状态
+document.addEventListener('DOMContentLoaded', function() {
+    const registerBtn = document.getElementById('registerBtn');
+    const form = registerBtn.closest('form');
+    
+    form.addEventListener('submit', function(e) {
+        registerBtn.classList.add('loading');
+        registerBtn.disabled = true;
+    });
+});
+
 function checkPasswordStrength() {
     const password = document.getElementById('password').value;
     const progress = document.getElementById('strengthProgress');

@@ -242,6 +242,27 @@ def log_response(response):
         logger.debug(f"Response: {response.status_code}")
     return response
 
+@app.after_request
+def add_security_headers(response):
+    """添加安全头"""
+    # 防止 MIME 类型嗅探
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # 防止点击劫持
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    # XSS 保护
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    # 内容安全策略（根据实际需求调整）
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "font-src 'self' https://cdn.jsdelivr.net; "
+        "img-src 'self' data:;"
+    )
+    # 引用策略
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
 @app.teardown_request
 def teardown_request(exception):
     """请求结束后关闭数据库会话"""
@@ -1254,42 +1275,61 @@ def search():
 @login_required
 def stats():
     """统计页面"""
+    from sqlalchemy import func, extract
     db_session = get_session()
     current_user_id = session.get('user_id')
     
-    # 获取用户的所有日记
-    entries = db_session.query(Entry).filter_by(user_id=current_user_id).all()
-    total_entries = len(entries)
+    # 使用 SQL 聚合查询获取基本统计
+    basic_stats = db_session.query(
+        func.count(Entry.id).label('total_entries'),
+        func.sum(func.length(Entry.content)).label('total_chars')
+    ).filter(Entry.user_id == current_user_id).first()
     
-    # 计算总字数
-    total_chars = sum(len(e.content) for e in entries)
+    total_entries = basic_stats.total_entries or 0
+    total_chars = basic_stats.total_chars or 0
+    
+    # 获取用户的所有日记（用于计算字数和其他统计）
+    entries = db_session.query(Entry).filter_by(user_id=current_user_id).all()
     total_words = sum(len(e.content.split()) for e in entries)
     
-    # 获取标签统计
-    all_tags = db_session.query(Tag).all()
-    tag_stats_list = []
-    for tag in all_tags:
-        count = len([e for e in tag.entries if e.user_id == current_user_id])
-        if count > 0:
-            tag_stats_list.append({'tag': tag.name, 'count': count})
-    tag_stats_list.sort(key=lambda x: x['count'], reverse=True)
-    tag_stats_list = tag_stats_list[:10]
+    # 标签统计 - 使用 SQL 查询优化
+    tag_stats = db_session.query(
+        Tag.name,
+        func.count(Entry.id).label('count')
+    ).join(entry_tags, Tag.id == entry_tags.c.tag_id)\
+     .join(Entry, entry_tags.c.entry_id == Entry.id)\
+     .filter(Entry.user_id == current_user_id)\
+     .group_by(Tag.id, Tag.name)\
+     .order_by(func.count(Entry.id).desc())\
+     .limit(10)\
+     .all()
+    
+    tag_stats_list = [{'tag': name, 'count': count} for name, count in tag_stats]
     total_tags = len(tag_stats_list)
     
-    # 按月统计
-    monthly_stats_dict = {}
-    for entry in entries:
-        month = entry.date_str[:7]
-        if month not in monthly_stats_dict:
-            monthly_stats_dict[month] = 0
-        monthly_stats_dict[month] += 1
-    monthly_stats_list = [{'month': m, 'count': c} for m, c in sorted(monthly_stats_dict.items())]
+    # 按月统计 - 使用 SQL 聚合
+    monthly_stats = db_session.query(
+        func.substr(Entry.date_str, 1, 7).label('month'),
+        func.count(Entry.id).label('count')
+    ).filter(Entry.user_id == current_user_id)\
+     .group_by(func.substr(Entry.date_str, 1, 7))\
+     .order_by('month')\
+     .all()
     
-    # 心情统计
+    monthly_stats_list = [{'month': month, 'count': count} for month, count in monthly_stats]
+    
+    # 心情统计 - 使用 SQL 聚合
+    mood_stats_query = db_session.query(
+        Mood.mood_type,
+        func.count(Entry.id).label('count')
+    ).join(Mood, Entry.id == Mood.entry_id)\
+     .filter(Entry.user_id == current_user_id)\
+     .group_by(Mood.mood_type)\
+     .all()
+    
     mood_stats = {'happy': 0, 'excited': 0, 'calm': 0, 'tired': 0, 'sad': 0, 'angry': 0, 'anxious': 0, 'neutral': 0}
-    for entry in entries:
-        if entry.mood:
-            mood_stats[entry.mood.mood_type] = mood_stats.get(entry.mood.mood_type, 0) + 1
+    for mood_type, count in mood_stats_query:
+        mood_stats[mood_type] = count
     
     mood_labels = {'happy': '开心', 'excited': '兴奋', 'calm': '平静', 'tired': '疲惫', 'sad': '难过', 'angry': '生气', 'anxious': '焦虑', 'neutral': '一般'}
     mood_emoji = {'happy': '😊', 'excited': '🤩', 'calm': '😌', 'tired': '😴', 'sad': '😢', 'angry': '😠', 'anxious': '😰', 'neutral': '😐'}

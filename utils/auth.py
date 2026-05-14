@@ -23,12 +23,27 @@ USER_ROLES = {
 }
 
 def get_admin_password():
-    """获取管理员密码"""
+    """获取管理员密码
+    
+    Returns:
+        str: 管理员密码
+    """
     import os
     admin_password = os.environ.get('ADMIN_PASSWORD')
     if admin_password:
         return admin_password
-    return 'huaweiBT@7274'
+    # 生成安全的随机密码
+    random_password = secrets.token_urlsafe(16)
+    print("=" * 60)
+    print("⚠️  首次运行 - 管理员密码已生成")
+    print(f"🔑 管理员用户名: Administrator")
+    print(f"🔑 管理员密码: {random_password}")
+    print("=" * 60)
+    print("💡 建议:")
+    print("   1. 首次登录后立即修改密码")
+    print("   2. 设置 ADMIN_PASSWORD 环境变量来固定密码")
+    print("=" * 60)
+    return random_password
 
 def check_login_lockout(username, ip_address=None):
     """检查用户是否被锁定 (使用数据库)"""

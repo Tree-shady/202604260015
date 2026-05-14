@@ -109,8 +109,8 @@
     }
 
     .loading-logo {
-        font-size: 80px;
-        margin-bottom: 20px;
+        font-size: clamp(60px, 12vw, 80px);
+        margin-bottom: clamp(15px, 3vw, 20px);
         animation: logoBounce 1s ease infinite;
     }
 
@@ -122,9 +122,9 @@
     }
 
     .loading-text {
-        font-size: 32px;
+        font-size: clamp(24px, 5vw, 32px);
         font-weight: 700;
-        margin-bottom: 30px;
+        margin-bottom: clamp(20px, 4vw, 30px);
         letter-spacing: 2px;
         animation: textPulse 1.5s ease-in-out infinite;
     }
@@ -135,12 +135,12 @@
     }
 
     .loading-progress {
-        margin-bottom: 20px;
+        margin-bottom: clamp(15px, 3vw, 20px);
     }
 
     .loading-spinner {
-        width: 50px;
-        height: 50px;
+        width: clamp(40px, 8vw, 50px);
+        height: clamp(40px, 8vw, 50px);
         border: 4px solid rgba(255, 255, 255, 0.3);
         border-top: 4px solid white;
         border-radius: 50%;
@@ -156,12 +156,12 @@
     .loading-dots {
         display: flex;
         justify-content: center;
-        gap: 8px;
+        gap: clamp(5px, 1.5vw, 8px);
     }
 
     .loading-dots span {
-        width: 12px;
-        height: 12px;
+        width: clamp(10px, 2vw, 12px);
+        height: clamp(10px, 2vw, 12px);
         background: white;
         border-radius: 50%;
         animation: dotBounce 1.4s ease-in-out infinite;
@@ -182,17 +182,17 @@
         align-items: center;
         justify-content: center;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px;
+        padding: clamp(10px, 3vw, 20px);
     }
 
     /* 认证卡片入场动画 */
     .auth-card {
         background: white;
-        border-radius: 20px;
+        border-radius: clamp(15px, 3vw, 20px);
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-        padding: 40px;
+        padding: clamp(25px, 5vw, 40px);
         width: 100%;
-        max-width: 420px;
+        max-width: clamp(320px, 90vw, 420px);
         opacity: 0;
         transform: translateY(30px) scale(0.95);
         transition: all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -205,13 +205,13 @@
 
     .auth-header {
         text-align: center;
-        margin-bottom: 30px;
+        margin-bottom: clamp(20px, 4vw, 30px);
     }
 
     .auth-header .logo-icon {
-        font-size: 48px;
+        font-size: clamp(36px, 8vw, 48px);
         color: #667eea;
-        margin-bottom: 10px;
+        margin-bottom: clamp(8px, 2vw, 10px);
         opacity: 0;
         transform: scale(0) rotate(-180deg);
         transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -224,9 +224,9 @@
     }
 
     .auth-header .title-fade {
-        font-size: 24px;
+        font-size: clamp(18px, 4vw, 24px);
         color: #333;
-        margin-bottom: 8px;
+        margin-bottom: clamp(6px, 1.5vw, 8px);
         opacity: 0;
         transform: translateY(-20px);
         transition: all 0.5s ease;
@@ -240,7 +240,7 @@
 
     .auth-header .subtitle-fade {
         color: #666;
-        font-size: 14px;
+        font-size: clamp(12px, 2.5vw, 14px);
         opacity: 0;
         transform: translateY(-15px);
         transition: all 0.5s ease;
@@ -267,13 +267,15 @@
     .auth-form .form-label {
         font-weight: 500;
         color: #333;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-form .form-control {
-        padding: 12px 15px;
-        border-radius: 10px;
+        padding: clamp(10px, 2vw, 12px) clamp(12px, 2.5vw, 15px);
+        border-radius: clamp(8px, 1.5vw, 10px);
         border: 2px solid #e0e0e0;
         transition: all 0.3s;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-form .form-control:focus {
@@ -287,6 +289,7 @@
         position: relative;
         overflow: hidden;
         transition: all 0.3s ease;
+        font-size: clamp(14px, 3vw, 16px);
     }
 
     .btn-animate::before {
@@ -336,13 +339,14 @@
     /* 底部动画 */
     .auth-footer {
         text-align: center;
-        margin-top: 25px;
-        padding-top: 20px;
+        margin-top: clamp(20px, 4vw, 25px);
+        padding-top: clamp(15px, 3vw, 20px);
         border-top: 1px solid #eee;
         opacity: 0;
         transform: translateY(15px);
         transition: all 0.5s ease;
         transition-delay: 0.85s;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-card.visible .auth-footer {
@@ -353,6 +357,7 @@
     .auth-footer p {
         color: #666;
         margin: 0;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-footer a {
@@ -361,6 +366,7 @@
         text-decoration: none;
         position: relative;
         transition: all 0.3s ease;
+        font-size: clamp(12px, 2.5vw, 14px);
     }
 
     .auth-footer a::after {
