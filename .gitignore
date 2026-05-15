@@ -1,10 +1,80 @@
-entries
-entries_backup_*
-.\trae
-.env
-diary.db
+# =============================================
+# Python
+# =============================================
 __pycache__/
-/utils/_pycache_/
-diary.db
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =============================================
+# Virtual Environment
+# =============================================
+venv/
+ENV/
+env/
+
+# =============================================
+# IDE
+# =============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# =============================================
+# Project Files
+# =============================================
+entries/
+entries_backup_*/
+images/
 data/
+logs/
 *.log
+diary.db
+diary.db-shm
+diary.db-wal
+
+# =============================================
+# Configuration & Secrets
+# =============================================
+.env
+config.json
+notifications.json
+tags.json
+secrets/
+
+# =============================================
+# Cache & Temporary
+# =============================================
+*.bak
+*.tmp
+*.swp
+*.swo
+*~
+.temp/
+.cache/
+
+# =============================================
+# OS
+# =============================================
+Thumbs.db
+.DS_Store
+*.orig
