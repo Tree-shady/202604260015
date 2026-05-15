@@ -6,21 +6,53 @@
 
 import hashlib
 import secrets
+import re
+from typing import Tuple, Optional, Dict, Any
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import session, redirect, url_for, flash
-from .models import get_session, User, LoginAttempt
+from utils.models import get_session, User, LoginAttempt
 
 SALT_LENGTH = 32
 
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION = 300
 
+# 密码强度要求
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
+
 USER_ROLES = {
     'superadmin': '超级管理员',
     'admin': '管理员',
     'user': '普通用户'
 }
+
+def validate_password_strength(password: str) -> Tuple[bool, str]:
+    """验证密码强度
+    
+    Args:
+        password: 待验证的密码
+        
+    Returns:
+        tuple: (是否符合要求, 错误信息)
+    """
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return False, f"密码至少需要{MIN_PASSWORD_LENGTH}个字符"
+    
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return False, f"密码不能超过{MAX_PASSWORD_LENGTH}个字符"
+    
+    if not any(c.isupper() for c in password):
+        return False, "密码必须包含大写字母"
+    
+    if not any(c.islower() for c in password):
+        return False, "密码必须包含小写字母"
+    
+    if not any(c.isdigit() for c in password):
+        return False, "密码必须包含数字"
+    
+    return True, ""
 
 def get_admin_password():
     """获取管理员密码
@@ -486,7 +518,7 @@ def get_current_user():
 
     return get_user_by_id(session['user_id'])
 
-def change_password(username, old_password, new_password):
+def change_password(username: str, old_password: str, new_password: str) -> Tuple[bool, str]:
     """修改用户密码
 
     Args:
@@ -506,8 +538,10 @@ def change_password(username, old_password, new_password):
     if not verify_password(old_password, user.password_hash):
         return False, "旧密码错误"
 
-    if len(new_password) < 6:
-        return False, "新密码至少需要6个字符"
+    # 验证新密码强度
+    is_valid, error_msg = validate_password_strength(new_password)
+    if not is_valid:
+        return False, error_msg
 
     user.password_hash = hash_password(new_password)
     user.password_set_at = datetime.now()
@@ -517,7 +551,7 @@ def change_password(username, old_password, new_password):
 
     return True, "密码修改成功"
 
-def reset_password(username, new_password):
+def reset_password(username: str, new_password: str) -> Tuple[bool, str]:
     """重置用户密码（管理员功能）
 
     Args:
@@ -533,8 +567,10 @@ def reset_password(username, new_password):
     if not user:
         return False, "用户不存在"
 
-    if len(new_password) < 6:
-        return False, "新密码至少需要6个字符"
+    # 验证新密码强度
+    is_valid, error_msg = validate_password_strength(new_password)
+    if not is_valid:
+        return False, error_msg
 
     user.password_hash = hash_password(new_password)
     user.password_set_at = datetime.now()

@@ -251,16 +251,27 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     # XSS 保护
     response.headers['X-XSS-Protection'] = '1; mode=block'
-    # 内容安全策略（根据实际需求调整）
+    # 内容安全策略 - 虽然保留了 unsafe-inline/unsafe-eval 以保证兼容性，但添加了更多限制
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "font-src 'self' https://cdn.jsdelivr.net; "
-        "img-src 'self' data:;"
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "object-src 'none'; "  # 禁止 Flash 等不安全插件
+        "base-uri 'self'; "    # 限制 base 标签
+        "form-action 'self'; " # 限制表单提交
+        "frame-ancestors 'self';"  # 防止点击劫持（替代 X-Frame-Options）
     )
     # 引用策略
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # 严格传输安全（HTTPS 环境下启用）
+    # response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    # 权限策略
+    response.headers['Permissions-Policy'] = (
+        'geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=()'
+    )
     return response
 
 @app.teardown_request
@@ -507,24 +518,11 @@ def register():
             flash('用户名需要3-50个字符', 'danger')
             return redirect(url_for('register'))
 
-        if len(password) < 8:
-            flash('密码至少需要8个字符', 'danger')
-            return redirect(url_for('register'))
-
-        if not any(c.isupper() for c in password):
-            flash('密码必须包含大写字母', 'danger')
-            return redirect(url_for('register'))
-
-        if not any(c.islower() for c in password):
-            flash('密码必须包含小写字母', 'danger')
-            return redirect(url_for('register'))
-
-        if not any(c.isdigit() for c in password):
-            flash('密码必须包含数字', 'danger')
-            return redirect(url_for('register'))
-
-        if len(password) > 128:
-            flash('密码不能超过128个字符', 'danger')
+        # 使用统一的密码强度验证
+        from utils.auth import validate_password_strength
+        is_valid, error_msg = validate_password_strength(password)
+        if not is_valid:
+            flash(error_msg, 'danger')
             return redirect(url_for('register'))
 
         if password != confirm_password:
@@ -592,22 +590,6 @@ def change_password():
 
         if new_password != confirm_password:
             flash('两次输入的新密码不一致', 'danger')
-            return redirect(url_for('change_password'))
-
-        if len(new_password) < 8:
-            flash('新密码至少需要8个字符', 'danger')
-            return redirect(url_for('change_password'))
-
-        if not any(c.isupper() for c in new_password):
-            flash('新密码必须包含大写字母', 'danger')
-            return redirect(url_for('change_password'))
-
-        if not any(c.islower() for c in new_password):
-            flash('新密码必须包含小写字母', 'danger')
-            return redirect(url_for('change_password'))
-
-        if not any(c.isdigit() for c in new_password):
-            flash('新密码必须包含数字', 'danger')
             return redirect(url_for('change_password'))
 
         from utils.auth import change_password as auth_change_password
