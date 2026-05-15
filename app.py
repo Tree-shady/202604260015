@@ -245,34 +245,8 @@ def log_response(response):
 @app.after_request
 def add_security_headers(response):
     """添加安全头"""
-    # 防止 MIME 类型嗅探
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    # 防止点击劫持
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    # XSS 保护
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    # 内容安全策略 - 虽然保留了 unsafe-inline/unsafe-eval 以保证兼容性，但添加了更多限制
-    response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "font-src 'self' https://cdn.jsdelivr.net; "
-        "img-src 'self' data:; "
-        "connect-src 'self'; "
-        "object-src 'none'; "  # 禁止 Flash 等不安全插件
-        "base-uri 'self'; "    # 限制 base 标签
-        "form-action 'self'; " # 限制表单提交
-        "frame-ancestors 'self';"  # 防止点击劫持（替代 X-Frame-Options）
-    )
-    # 引用策略
-    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    # 严格传输安全（HTTPS 环境下启用）
-    # response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    # 权限策略
-    response.headers['Permissions-Policy'] = (
-        'geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=()'
-    )
-    return response
+    from utils.security_headers import add_security_headers as apply_security_headers
+    return apply_security_headers(response)
 
 @app.teardown_request
 def teardown_request(exception):
@@ -1888,59 +1862,9 @@ def get_batch_prompts_api():
     prompts = get_prompts_by_category(category, count)
     return jsonify(prompts)
 
-def run_production_server():
-    """运行生产服务器"""
-    if not os.environ.get('SECRET_KEY'):
-        logger.warning("生产环境未设置 SECRET_KEY 环境变量，使用默认值")
-
-    try:
-        from gunicorn.app.wsgiapp import WSGIApplication
-    except ImportError:
-        logger.warning("Gunicorn 未安装，将使用 Flask 内置服务器")
-        run_development_server()
-        return
-
-    # Gunicorn 配置
-    bind = os.environ.get('BIND_ADDRESS', '0.0.0.0:5000')
-    workers = int(os.environ.get('GUNICORN_WORKERS', 4))
-    worker_class = 'sync'
-    timeout = 120
-    keepalive = 5
-
-    logger.info(f"启动生产服务器 - 绑定地址: {bind}, 工作进程数: {workers}")
-
-    # 使用 Gunicorn 运行
-    app_for_gunicorn = WSGIApplication()
-    app_for_gunicorn.load_wsgiapp()
-    app_for_gunicorn.cfg.set({
-        'bind': bind,
-        'workers': workers,
-        'worker_class': worker_class,
-        'timeout': timeout,
-        'keepalive': keepalive,
-        'accesslog': '-',
-        'errorlog': '-',
-        'loglevel': 'info'
-    })
-    app_for_gunicorn.run()
-
-def run_development_server():
-    """运行开发服务器"""
-    host = os.environ.get('FLASK_HOST', '0.0.0.0')
-    port = int(os.environ.get('FLASK_PORT', 5000))
-
-    logger.info(f"启动开发服务器 - 地址: http://{host}:{port}")
-    print(f"\n{'=' * 60}")
-    print(f"  日记本 Web 服务器")
-    print(f"{'=' * 60}")
-    print(f"  开发模式: http://127.0.0.1:{port}")
-    print(f"  生产模式: 请设置 FLASK_ENV=production")
-    print(f"{'=' * 60}\n")
-
-    app.run(host=host, port=port, debug=True)
-
 if __name__ == '__main__':
     from utils.changelog import changelog_manager, record_update
+    from utils.server_config import run_development_server, run_production_server
 
     version_info = changelog_manager.get_version()
     logger.info(f"应用启动 - 版本: v{version_info.get('version', '1.0.0')}, Build #{version_info.get('build_number', 1)}")
@@ -1948,6 +1872,6 @@ if __name__ == '__main__':
     env = get_env()
 
     if env == 'production':
-        run_production_server()
+        run_production_server(app)
     else:
-        run_development_server()
+        run_development_server(app)
