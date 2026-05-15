@@ -1,9 +1,10 @@
 import re
 import html
+from typing import List, Optional
 from datetime import datetime
 from .config import DATE_FORMAT
 
-def validate_date_str(date_str):
+def validate_date_str(date_str: str) -> bool:
     """验证日期字符串，防止路径遍历攻击"""
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
         return False
@@ -13,7 +14,7 @@ def validate_date_str(date_str):
     except ValueError:
         return False
 
-def validate_tag(tag):
+def validate_tag(tag: str) -> bool:
     """验证标签名称，防止恶意输入"""
     if not tag:
         return False
@@ -23,18 +24,18 @@ def validate_tag(tag):
         return False
     return True
 
-def sanitize_tag(tag):
+def sanitize_tag(tag: str) -> str:
     """对标签进行 XSS 防护转义"""
     return html.escape(tag.strip())
 
-def sanitize_tags(tags_str):
+def sanitize_tags(tags_str: Optional[str]) -> List[str]:
     """对多个标签进行 XSS 防护转义"""
     if not tags_str:
         return []
     tags = [tag.strip() for tag in tags_str.split(',')]
     return [sanitize_tag(tag) for tag in tags if tag]
 
-def validate_relative_date(date_str):
+def validate_relative_date(date_str: str) -> Optional[int]:
     """验证相对日期字符串（如今天、昨天等）"""
     relative_dates = {
         '今天': 0,

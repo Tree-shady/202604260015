@@ -6,10 +6,11 @@
 
 import os
 import json
+from typing import Dict, Any, Optional
 from pathlib import Path
 from urllib.parse import quote_plus
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, Engine
+from sqlalchemy.orm import sessionmaker, Session
 from threading import local
 
 _thread_local = local()
@@ -21,25 +22,25 @@ DATABASE_CONFIG_FILE = DATA_DIR / 'database_config.json'
 
 class DatabaseManager:
     def __init__(self):
-        self.engines = {}
-        self.current_db_type = 'local'
+        self.engines: Dict[str, Engine] = {}
+        self.current_db_type: str = 'local'
 
-    def load_config(self):
+    def load_config(self) -> Dict[str, Any]:
         """加载数据库配置"""
         if DATABASE_CONFIG_FILE.exists():
             try:
                 with open(DATABASE_CONFIG_FILE, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except:
+            except Exception:
                 pass
         return {}
 
-    def save_config(self, config):
+    def save_config(self, config: Dict[str, Any]) -> None:
         """保存数据库配置"""
         with open(DATABASE_CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
 
-    def get_database_url(self, db_type='local'):
+    def get_database_url(self, db_type: str = 'local') -> str:
         """获取数据库连接URL"""
         config = self.load_config()
         
@@ -47,7 +48,7 @@ class DatabaseManager:
             remote_config = config.get('remote', {})
             db_type = os.environ.get('DB_TYPE', remote_config.get('type', 'postgresql'))
             host = os.environ.get('DB_HOST', remote_config.get('host', 'localhost'))
-            port = int(os.environ.get('DB_PORT', remote_config.get('port', 5432)))
+            port = int(os.environ.get('DB_PORT', str(remote_config.get('port', 5432))))
             database = os.environ.get('DB_NAME', remote_config.get('database', 'diary'))
             username = os.environ.get('DB_USERNAME', remote_config.get('username', 'user'))
             password = os.environ.get('DB_PASSWORD', remote_config.get('password', ''))
@@ -60,7 +61,7 @@ class DatabaseManager:
         else:
             return os.environ.get('DATABASE_URL', 'sqlite:///diary.db')
 
-    def init_database(self, db_type='local'):
+    def init_database(self, db_type: str = 'local') -> Engine:
         """初始化数据库连接"""
         global engine
         
@@ -78,7 +79,7 @@ class DatabaseManager:
         
         return engine
 
-    def switch_database(self, db_type):
+    def switch_database(self, db_type: str) -> None:
         """切换数据库类型"""
         if db_type not in ['local', 'remote']:
             raise ValueError("数据库类型必须是 'local' 或 'remote'")
@@ -89,7 +90,8 @@ class DatabaseManager:
         # 初始化新数据库
         self.init_database(db_type)
 
-    def set_remote_config(self, host, port, database, username, password, db_type='postgresql'):
+    def set_remote_config(self, host: str, port: int, database: str, 
+                         username: str, password: str, db_type: str = 'postgresql') -> None:
         """设置远程数据库配置"""
         config = self.load_config()
         config['remote'] = {
@@ -102,11 +104,11 @@ class DatabaseManager:
         }
         self.save_config(config)
 
-    def get_current_db_type(self):
+    def get_current_db_type(self) -> str:
         """获取当前数据库类型"""
         return self.current_db_type
 
-    def is_remote_configured(self):
+    def is_remote_configured(self) -> bool:
         """检查远程数据库是否已配置"""
         config = self.load_config()
         remote = config.get('remote', {})
@@ -114,18 +116,18 @@ class DatabaseManager:
 
 
 # 全局数据库连接
-engine = None
+engine: Optional[Engine] = None
 
-def get_session():
+def get_session() -> Session:
     """获取数据库会话"""
     if not hasattr(_thread_local, 'session'):
         if engine is None:
             raise RuntimeError("数据库未初始化，请先调用 init_db()")
-        Session = sessionmaker(bind=engine)
-        _thread_local.session = Session()
+        SessionClass = sessionmaker(bind=engine)
+        _thread_local.session = SessionClass()
     return _thread_local.session
 
-def close_db():
+def close_db() -> None:
     """关闭数据库会话"""
     if hasattr(_thread_local, 'session'):
         _thread_local.session.close()
@@ -134,7 +136,7 @@ def close_db():
 # 创建全局数据库管理器实例
 db_manager = DatabaseManager()
 
-def init_db(db_url=None):
+def init_db(db_url: Optional[str] = None) -> None:
     """初始化数据库（兼容旧接口）"""
     global engine
     
@@ -146,4 +148,8 @@ def init_db(db_url=None):
     
     from utils.models import Base, init_db as models_init_db
     Base.metadata.create_all(engine)
-    models_init_db('sqlite:///diary.db')
+    # 初始化 models 中的数据库（需要正确参数）
+    if db_url:
+        models_init_db(db_url)
+    else:
+        models_init_db('sqlite:///diary.db')
