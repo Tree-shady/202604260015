@@ -1,0 +1,13 @@
+# GitHub CODEOWNERS 文件
+# 参考：https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# 所有文件默认审核者（设置为仓库所有者）
+* @Tree-shady
+
+# 特定目录的审核者
+# /backend/ @backend-team
+# /docs/ @docs-team
+
+# 特定文件类型的审核者
+# *.py @python-reviewer
+# *.js @js-reviewer
