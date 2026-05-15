@@ -358,3 +358,100 @@ def delete_mood(mood_id):
     db_session.close()
     
     return redirect(url_for('admin.moods'))
+
+
+@admin_bp.route('/admin/users/create', methods=['POST'])
+@login_required
+@admin_required
+def admin_create_user():
+    """管理员创建用户"""
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    role = request.form.get('role', 'user')
+    
+    if not username or not password:
+        flash('用户名和密码不能为空', 'danger')
+        return redirect(url_for('admin.users'))
+    
+    success, message = create_user(username, password, role)
+    
+    if success:
+        # 添加通知
+        try:
+            add_notification(
+                message=f'管理员创建了新用户：{username}',
+                level='info',
+                title='用户创建'
+            )
+        except Exception:
+            pass
+        flash(message, 'success')
+    else:
+        flash(message, 'danger')
+    
+    return redirect(url_for('admin.users'))
+
+
+@admin_bp.route('/api/test-database', methods=['POST'])
+@login_required
+@admin_required
+def test_database():
+    """测试数据库连接"""
+    db_host = request.json.get('host', '').strip()
+    db_port = request.json.get('port', '').strip()
+    db_name = request.json.get('database', '').strip()
+    db_user = request.json.get('username', '').strip()
+    db_password = request.json.get('password', '')
+    db_type = request.json.get('type', 'postgresql')
+    
+    if not all([db_host, db_name, db_user]):
+        return jsonify({'success': False, 'message': '请填写完整的数据库信息'}), 400
+    
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.exc import OperationalError
+        from urllib.parse import quote_plus
+        
+        port = int(db_port) if db_port else 5432
+        encoded_password = quote_plus(db_password)
+        
+        if db_type == 'postgresql':
+            db_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{port}/{db_name}"
+            engine = create_engine(db_url, connect_args={'connect_timeout': 10})
+        elif db_type == 'mysql':
+            db_url = f"mysql+pymysql://{db_user}:{encoded_password}@{db_host}:{port}/{db_name}"
+            engine = create_engine(db_url, connect_args={'connect_timeout': 10})
+        else:
+            return jsonify({'success': False, 'message': '不支持的数据库类型'}), 400
+        
+        conn = engine.connect()
+        conn.close()
+        engine.dispose()
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功连接到 {db_type} 数据库',
+            'info': {
+                'host': db_host,
+                'port': port,
+                'database': db_name,
+                'type': db_type
+            }
+        }), 200
+        
+    except OperationalError as e:
+        error_msg = str(e).split('\n')[0]
+        return jsonify({
+            'success': False,
+            'message': f'数据库连接失败: {error_msg}'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'连接错误: {str(e)}'
+        }), 500
+
+
+# 必要的导入更新
+from utils.auth import create_user
+from utils.notification import add_notification

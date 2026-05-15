@@ -67,6 +67,7 @@ def remove_favorite_api(date_str):
 # 通知功能 API
 @api_bp.route('/notifications')
 @login_required
+@rate_limit(max_requests=30, window=60)
 def get_notifications_api():
     """获取通知列表"""
     limit = request.args.get('limit', type=int, default=20)
@@ -153,3 +154,21 @@ def mood_prompt_api(mood_id):
     """根据心情获取写作提示"""
     prompt = get_prompt_by_mood(mood_id)
     return jsonify({'prompt': prompt})
+
+
+@api_bp.route('/prompts/categories')
+@login_required
+def get_prompt_categories_api():
+    """获取所有提示分类"""
+    return jsonify(get_all_categories())
+
+
+@api_bp.route('/prompts/batch')
+@login_required
+def get_batch_prompts_api():
+    """批量获取提示"""
+    category = request.args.get('category', 'daily')
+    count = int(request.args.get('count', 3))
+    prompts = get_prompts_by_category(category, count)
+    return jsonify(prompts)
+
