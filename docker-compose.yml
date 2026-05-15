@@ -1,0 +1,36 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: personal-diary
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/diary.db}
+    volumes:
+      - app_data:/app/data
+      - app_entries:/app/entries
+      - app_images:/app/images
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - diary-network
+
+volumes:
+  app_data:
+  app_entries:
+  app_images:
+  app_logs:
+
+networks:
+  diary-network:
+    driver: bridge

@@ -1,0 +1,32 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  push:
+    branches: [ main, master ]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install safety
+      run: pip install safety
+    
+    - name: Run security scan
+      run: safety check --file=requirements.txt || true
+    
+    - name: Install Bandit
+      run: pip install bandit
+    
+    - name: Run Bandit security scan
+      run: bandit -r . -x ./tests -f json -o bandit_report.json || true
