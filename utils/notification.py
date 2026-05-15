@@ -136,6 +136,15 @@ def clear_all_notifications():
     db_session.query(Notification).delete()
     db_session.commit()
 
+def create_system_notification(message, level='info'):
+    """创建系统通知（管理员使用）
+    
+    Args:
+        message: 通知消息内容
+        level: 通知级别
+    """
+    return add_notification(message, level, title='系统通知')
+
 # 兼容旧函数名
 def init_notifications_file():
     """初始化通知数据文件（兼容旧函数）"""

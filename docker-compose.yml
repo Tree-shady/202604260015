@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  diary:
+    build: .
+    container_name: diary_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-diary-app-secret-key-2026}
+    volumes:
+      - ./data:/app/data
+      - ./images:/app/images
+      - ./diary.db:/app/diary.db
