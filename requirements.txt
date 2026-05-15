@@ -7,7 +7,7 @@
 # 核心依赖 (Core Dependencies) - 必需
 # =============================================
 Flask>=3.0.0,<4.0.0              # Web 框架
-Flask-Caching>=2.1.0,<3.0.0     # 缓存功能
+Flask-Caching>=2.4.0,<3.0.0     # 缓存功能
 SQLAlchemy>=2.0.0,<3.0.0        # ORM 数据库操作
 Werkzeug>=3.0.0,<4.0.0          # Flask 配套工具
 
