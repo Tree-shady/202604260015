@@ -399,7 +399,7 @@ get_stats = cache.memoize(timeout=300)(get_stats)
 
 # 用户认证路由
 @app.route('/login', methods=['GET', 'POST'])
-@rate_limit(max_requests=10, window=60)
+@rate_limit(max_requests=30, window=60)
 def login():
     """用户登录"""
     if request.method == 'POST':
@@ -475,7 +475,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
-@rate_limit(max_requests=5, window=180)
+@rate_limit(max_requests=20, window=180)
 def register():
     """用户注册"""
     if request.method == 'POST':
@@ -1794,7 +1794,7 @@ def check_favorite_api(date_str):
 
 @app.route('/api/favorites/<date_str>', methods=['POST'])
 @login_required
-@rate_limit(max_requests=20, window=60)
+@rate_limit(max_requests=100, window=60)
 def add_favorite_api(date_str):
     """添加收藏"""
     try:
@@ -1810,7 +1810,7 @@ def add_favorite_api(date_str):
 
 @app.route('/api/favorites/<date_str>', methods=['DELETE'])
 @login_required
-@rate_limit(max_requests=20, window=60)
+@rate_limit(max_requests=100, window=60)
 def remove_favorite_api(date_str):
     """移除收藏"""
     try:
