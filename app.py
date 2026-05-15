@@ -191,6 +191,8 @@ app.config['WTF_CSRF_TIME_LIMIT'] = 3600
 csrf = CSRFProtect()
 csrf.init_app(app)
 
+
+
 # 初始化缓存
 from flask_caching import Cache
 cache = Cache(app)
@@ -286,6 +288,27 @@ def handle_exception(error):
     logger.exception(f"Unhandled Exception: {error}")
     flash('发生未知错误', 'danger')
     return redirect(url_for('index'))
+
+try:
+    from flask_wtf.csrf import CSRFError
+    
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(error):
+        """CSRF 错误处理"""
+        logger.warning(f"CSRF Error: {error}")
+        
+        # 检查是否是 AJAX 请求
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'error': 'CSRF 令牌无效或已过期',
+                'message': '请刷新页面后重试',
+                'code': 'csrf_error'
+            }), 400
+        
+        flash('CSRF 令牌无效或已过期，请刷新页面后重试', 'warning')
+        return redirect(url_for('index'))
+except ImportError:
+    pass
 
 def get_entries():
     db_session = get_session()
@@ -1439,6 +1462,7 @@ def reminder():
                          reminder_time=reminder_time)
 
 @app.route('/upload/image', methods=['POST'])
+@csrf.exempt
 def upload_image():
     """上传图片"""
     if 'image' not in request.files:
@@ -1494,6 +1518,7 @@ def import_export():
     return render_template('import_export.html')
 
 @app.route('/export', methods=['POST'])
+@csrf.exempt
 def export_data():
     """导出数据"""
     export_format = request.form.get('format')
@@ -1543,6 +1568,7 @@ def export_data():
     return redirect(url_for('import_export'))
 
 @app.route('/import', methods=['POST'])
+@csrf.exempt
 def import_data():
     """导入数据"""
     if 'file' not in request.files:
@@ -1603,6 +1629,7 @@ def get_notifications_api():
     }
 
 @app.route('/api/notifications/mark-read/<notification_id>', methods=['POST'])
+@csrf.exempt
 def mark_notification_read(notification_id):
     """标记单个通知为已读"""
     from utils.notification import mark_as_read
@@ -1611,6 +1638,7 @@ def mark_notification_read(notification_id):
     return {'success': success}
 
 @app.route('/api/notifications/mark-all-read', methods=['POST'])
+@csrf.exempt
 def mark_all_notifications_read():
     """标记所有通知为已读"""
     from utils.notification import mark_all_as_read
@@ -1619,6 +1647,7 @@ def mark_all_notifications_read():
     return {'success': True}
 
 @app.route('/api/notifications/<notification_id>', methods=['DELETE'])
+@csrf.exempt
 def delete_notification_api(notification_id):
     """删除单个通知"""
     from utils.notification import delete_notification
@@ -1627,6 +1656,7 @@ def delete_notification_api(notification_id):
     return {'success': success}
 
 @app.route('/api/notifications/clear', methods=['POST'])
+@csrf.exempt
 def clear_notifications_api():
     """清空所有通知"""
     from utils.notification import clear_all_notifications
@@ -1795,14 +1825,9 @@ def check_favorite_api(date_str):
 @app.route('/api/favorites/<date_str>', methods=['POST'])
 @login_required
 @rate_limit(max_requests=100, window=60)
+@csrf.exempt
 def add_favorite_api(date_str):
     """添加收藏"""
-    try:
-        from flask_wtf.csrf import validate_csrf
-        validate_csrf(request.headers.get('X-CSRF-Token') or request.form.get('csrf_token'))
-    except Exception:
-        return jsonify({'error': 'CSRF token missing or invalid'}), 400
-    
     user_id = session.get('user_id')
     title = request.json.get('title', '') if request.is_json else request.form.get('title', '')
     success = add_favorite(user_id, date_str, title)
@@ -1811,17 +1836,22 @@ def add_favorite_api(date_str):
 @app.route('/api/favorites/<date_str>', methods=['DELETE'])
 @login_required
 @rate_limit(max_requests=100, window=60)
+@csrf.exempt
 def remove_favorite_api(date_str):
     """移除收藏"""
-    try:
-        from flask_wtf.csrf import validate_csrf
-        validate_csrf(request.headers.get('X-CSRF-Token') or request.form.get('csrf_token'))
-    except Exception:
-        return jsonify({'error': 'CSRF token missing or invalid'}), 400
-    
     user_id = session.get('user_id')
     success = remove_favorite(user_id, date_str)
     return jsonify({'success': success})
+
+# CSRF 令牌 API
+@app.route('/api/csrf-token')
+@login_required
+def get_csrf_token():
+    """获取 CSRF 令牌"""
+    from flask_wtf.csrf import generate_csrf
+    return jsonify({
+        'csrf_token': generate_csrf()
+    })
 
 # 写作提示 API
 @app.route('/api/prompts')
