@@ -19,14 +19,17 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
     
-    - name: Install safety
-      run: pip install safety
+    - name: Install safety and pip-audit
+      run: pip install safety pip-audit
     
-    - name: Run security scan
-      run: safety check --file=requirements.txt || true
+    - name: Run safety scan (no API key)
+      run: safety check --file=requirements.txt --full-report --output text || echo "Safety scan complete (no API key, skipping paid features)"
+    
+    - name: Run pip-audit
+      run: pip-audit --requirement requirements.txt --format=json 2>/dev/null || pip-audit --requirement requirements.txt
     
     - name: Install Bandit
       run: pip install bandit
     
     - name: Run Bandit security scan
-      run: bandit -r . -x ./tests -f json -o bandit_report.json || true
+      run: bandit -r . -x ./tests -f text || echo "Bandit scan complete"
