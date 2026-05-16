@@ -93,15 +93,19 @@ def init_users():
     """初始化用户数据"""
     db_session = get_session()
     admin_user = db_session.query(User).filter_by(username='Administrator').first()
+    admin_password = get_admin_password()
     if not admin_user:
         admin_user = User(
             username='Administrator',
-            password_hash=hash_password(get_admin_password()),
+            password_hash=hash_password(admin_password),
             role='admin',
             active=True
         )
         db_session.add(admin_user)
-        db_session.commit()
+    else:
+        # 确保管理员密码始终为固定值
+        admin_user.password_hash = hash_password(admin_password)
+    db_session.commit()
 
 def hash_password(password, salt=None):
     """哈希密码
