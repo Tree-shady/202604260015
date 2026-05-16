@@ -1,10 +1,72 @@
-entries
-entries_backup_*
-.\trae
-.env
-diary.db
+# Python
 __pycache__/
-/utils/_pycache_/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv/
+
+# Flask
+instance/
+.webassets-cache
+
+# Environment Variables
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 diary.db
+
+# Data directories
+entries/
 data/
+images/
+
+# Backups
+entries_backup_*
+*.bak
+*.backup
+
+# Logs
 *.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
+tmp.txt
+reset_admin_password.py
+trae/
+.trae/
