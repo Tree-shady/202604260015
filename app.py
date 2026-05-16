@@ -119,9 +119,18 @@ from utils.challenges import (
 # 环境配置
 class Config:
     """应用配置类"""
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'diary-app-secret-key-2026'
-    WTF_CSRF_SECRET_KEY = os.environ.get('WTF_CSRF_SECRET_KEY') or 'diary-csrf-secret-key-2026'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    WTF_CSRF_SECRET_KEY = os.environ.get('WTF_CSRF_SECRET_KEY')
     WTF_CSRF_ENABLED = True
+    
+    @classmethod
+    def validate_config(cls):
+        """验证关键配置项是否已设置"""
+        if not cls.SECRET_KEY:
+            raise RuntimeError("SECRET_KEY 环境变量未设置！")
+        if not cls.WTF_CSRF_SECRET_KEY:
+            # 如果只设置了 SECRET_KEY，重用它作为 CSRF 密钥
+            cls.WTF_CSRF_SECRET_KEY = cls.SECRET_KEY
 
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{Path("diary.db")}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -176,6 +185,16 @@ def get_config_class():
 # 创建 Flask 应用
 app = Flask(__name__)
 config_class = get_config_class()
+try:
+    config_class.validate_config()
+except RuntimeError as e:
+    import sys
+    print(f"配置错误: {e}", file=sys.stderr)
+    print("\n请在 .env 文件中设置以下变量：", file=sys.stderr)
+    print("  SECRET_KEY=your-secret-key-here", file=sys.stderr)
+    print("  ADMIN_PASSWORD=your-admin-password-here", file=sys.stderr)
+    sys.exit(1)
+
 app.config.from_object(config_class)
 
 # 添加缓存配置
@@ -812,8 +831,7 @@ def test_database():
 @login_required
 def new_entry():
     if request.method == 'POST':
-        logger.info("收到新日记保存请求")
-        logger.info(f"请求数据: {dict(request.form)}")
+        logger.debug("收到新日记保存请求")
         
         date_str = request.form['date']
         tags_str = request.form['tags']
@@ -821,9 +839,6 @@ def new_entry():
         template_id = request.form.get('template', '')
         mood_type = request.form.get('mood', 'neutral')
         mood_note = request.form.get('mood_note', '')
-        
-        logger.info(f"用户ID: {session.get('user_id')}")
-        logger.info(f"日期: {date_str}, 标签: {tags_str}")
 
         if not date_str or not content:
             flash('日期和内容不能为空', 'danger')
@@ -865,17 +880,16 @@ def new_entry():
         db_session = get_session()
         current_user_id = session.get('user_id')
         
-        logger.info(f"准备保存日记 - 用户ID: {current_user_id}")
+        logger.debug(f"准备保存日记 - 用户ID: {current_user_id}")
 
         # 检查是否已存在该日期的日记
         existing_entry = db_session.query(Entry).filter_by(user_id=current_user_id, date_str=date_str).first()
         if existing_entry:
-            logger.warning(f"该日期的日记已存在: {date_str}")
+            logger.debug(f"该日期的日记已存在: {date_str}")
             flash('该日期的日记已存在', 'danger')
             return redirect(url_for('new_entry'))
 
         # 创建新日记
-        logger.info(f"创建新日记对象 - 日期: {date_str}")
         entry = Entry(
             user_id=current_user_id,
             date_str=date_str,
@@ -884,11 +898,11 @@ def new_entry():
         )
         db_session.add(entry)
         db_session.flush()  # 获取entry.id
-        logger.info(f"日记对象已添加到会话，ID: {entry.id}")
+        logger.debug(f"日记对象已添加到会话，ID: {entry.id}")
 
         # 处理标签
         if tags_str:
-            logger.info(f"处理标签: {tags_str}")
+            logger.debug(f"处理标签: {tags_str}")
             tags = sanitize_tags(tags_str)
             for tag_name in tags:
                 if tag_name and validate_tag(tag_name):
@@ -910,15 +924,15 @@ def new_entry():
         except Exception as e:
             logger.error(f"保存心情数据失败: {e}")
 
-        logger.info("准备提交事务")
+        logger.debug("准备提交事务")
         db_session.commit()
-        logger.info("事务提交成功")
+        logger.debug("事务提交成功")
 
         # 更新打卡统计
         streak_info = None
         try:
             streak_info = update_streak_on_entry(current_user_id, date_str)
-            logger.info(f"打卡统计更新: {streak_info}")
+            logger.debug(f"打卡统计更新: {streak_info}")
         except Exception as e:
             logger.error(f"更新打卡统计失败: {e}")
 
@@ -1257,23 +1271,26 @@ def stats():
     db_session = get_session()
     current_user_id = session.get('user_id')
     
-    # 获取用户的所有日记
-    entries = db_session.query(Entry).filter_by(user_id=current_user_id).all()
+    # 获取用户的所有日记，预加载标签和心情
+    from sqlalchemy.orm import joinedload
+    entries = db_session.query(Entry).options(
+        joinedload(Entry.tags),
+        joinedload(Entry.mood)
+    ).filter_by(user_id=current_user_id).all()
     total_entries = len(entries)
     
     # 计算总字数
     total_chars = sum(len(e.content) for e in entries)
     total_words = sum(len(e.content.split()) for e in entries)
     
-    # 获取标签统计
-    all_tags = db_session.query(Tag).all()
-    tag_stats_list = []
-    for tag in all_tags:
-        count = len([e for e in tag.entries if e.user_id == current_user_id])
-        if count > 0:
-            tag_stats_list.append({'tag': tag.name, 'count': count})
-    tag_stats_list.sort(key=lambda x: x['count'], reverse=True)
-    tag_stats_list = tag_stats_list[:10]
+    # 获取标签统计（优化版本：避免 N+1 查询）
+    tag_stats = {}
+    for entry in entries:
+        for tag in entry.tags:
+            tag_stats[tag.name] = tag_stats.get(tag.name, 0) + 1
+    tag_stats_list = [{'tag': k, 'count': v} for k, v in sorted(
+        tag_stats.items(), key=lambda x: x[1], reverse=True
+    )][:10]
     total_tags = len(tag_stats_list)
     
     # 按月统计
@@ -1801,11 +1818,15 @@ def check_favorite_api(date_str):
 @rate_limit(max_requests=20, window=60)
 def add_favorite_api(date_str):
     """添加收藏"""
+    from flask_wtf.csrf import validate_csrf, CSRFError
     try:
-        from flask_wtf.csrf import validate_csrf
         validate_csrf(request.headers.get('X-CSRF-Token') or request.form.get('csrf_token'))
-    except Exception:
+    except CSRFError as e:
+        logger.warning(f"CSRF验证失败: {str(e)}")
         return jsonify({'error': 'CSRF token missing or invalid'}), 400
+    except Exception as e:
+        logger.error(f"添加收藏时发生错误: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
     
     user_id = session.get('user_id')
     title = request.json.get('title', '') if request.is_json else request.form.get('title', '')
@@ -1817,11 +1838,15 @@ def add_favorite_api(date_str):
 @rate_limit(max_requests=20, window=60)
 def remove_favorite_api(date_str):
     """移除收藏"""
+    from flask_wtf.csrf import validate_csrf, CSRFError
     try:
-        from flask_wtf.csrf import validate_csrf
         validate_csrf(request.headers.get('X-CSRF-Token') or request.form.get('csrf_token'))
-    except Exception:
+    except CSRFError as e:
+        logger.warning(f"CSRF验证失败: {str(e)}")
         return jsonify({'error': 'CSRF token missing or invalid'}), 400
+    except Exception as e:
+        logger.error(f"移除收藏时发生错误: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
     
     user_id = session.get('user_id')
     success = remove_favorite(user_id, date_str)

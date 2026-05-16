@@ -39,6 +39,36 @@ class User(Base):
     total_entries = Column(Integer, default=0)  # 总日记数
 
     entries = relationship('Entry', back_populates='user', cascade='all, delete-orphan')
+    
+    def to_dict(self, include_password=False):
+        """转换为字典格式"""
+        # 检查并更新过期状态
+        now = datetime.utcnow()
+        if self.expires_at and self.expires_at < now and self.active:
+            self.active = False
+        
+        # 检查密码是否过期
+        password_expired = False
+        if self.password_expires_at and self.password_expires_at < now:
+            password_expired = True
+        
+        result = {
+            'id': self.id,
+            'username': self.username,
+            'role': self.role,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login': self.updated_at.isoformat() if self.updated_at else None,
+            'is_active': self.active,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'is_temporary': self.is_temporary,
+            'password_expired': password_expired,
+            'password_expires_at': self.password_expires_at.isoformat() if self.password_expires_at else None
+        }
+        
+        if include_password:
+            result['password_hash'] = self.password_hash
+        
+        return result
 
 class Entry(Base):
     __tablename__ = 'entries'
@@ -135,3 +165,28 @@ def close_db():
     if hasattr(_thread_local, 'session'):
         _thread_local.session.close()
         del _thread_local.session
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def db_transaction():
+    """数据库事务上下文管理器
+    
+    使用示例:
+        with db_transaction() as db:
+            user = db.query(User).get(1)
+            # 操作...
+    
+    自动处理提交/回滚和关闭
+    """
+    session = get_session()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        close_db()

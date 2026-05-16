@@ -26,9 +26,11 @@ def get_admin_password():
     """获取管理员密码"""
     import os
     admin_password = os.environ.get('ADMIN_PASSWORD')
-    if admin_password:
-        return admin_password
-    return 'huaweiBT@7274'
+    if not admin_password:
+        raise RuntimeError(
+            "ADMIN_PASSWORD 环境变量未设置！请在 .env 文件中设置管理员密码。"
+        )
+    return admin_password
 
 def check_login_lockout(username, ip_address=None):
     """检查用户是否被锁定 (使用数据库)"""
@@ -149,32 +151,7 @@ def get_users():
     """
     db_session = get_session()
     users = db_session.query(User).all()
-    user_list = []
-
-    for user in users:
-        if user.expires_at and user.expires_at < datetime.now() and user.active:
-            user.active = False
-            db_session.commit()
-
-        password_expired = False
-        if user.password_expires_at and user.password_expires_at < datetime.now():
-            password_expired = True
-
-        user_list.append({
-            'id': user.id,
-            'username': user.username,
-            'password_hash': user.password_hash,
-            'role': user.role,
-            'created_at': user.created_at.isoformat(),
-            'last_login': user.updated_at.isoformat() if user.updated_at else None,
-            'is_active': user.active,
-            'expires_at': user.expires_at.isoformat() if user.expires_at else None,
-            'is_temporary': user.is_temporary,
-            'password_expired': password_expired,
-            'password_expires_at': user.password_expires_at.isoformat() if user.password_expires_at else None
-        })
-
-    return user_list
+    return [user.to_dict(include_password=True) for user in users]
 
 def get_user_by_username(username):
     """根据用户名获取用户
@@ -187,29 +164,7 @@ def get_user_by_username(username):
     """
     db_session = get_session()
     user = db_session.query(User).filter_by(username=username).first()
-    if user:
-        if user.expires_at and user.expires_at < datetime.now() and user.active:
-            user.active = False
-            db_session.commit()
-
-        password_expired = False
-        if user.password_expires_at and user.password_expires_at < datetime.now():
-            password_expired = True
-
-        return {
-            'id': user.id,
-            'username': user.username,
-            'password_hash': user.password_hash,
-            'role': user.role,
-            'created_at': user.created_at.isoformat(),
-            'last_login': user.updated_at.isoformat() if user.updated_at else None,
-            'is_active': user.active,
-            'expires_at': user.expires_at.isoformat() if user.expires_at else None,
-            'is_temporary': user.is_temporary,
-            'password_expired': password_expired,
-            'password_expires_at': user.password_expires_at.isoformat() if user.password_expires_at else None
-        }
-    return None
+    return user.to_dict(include_password=True) if user else None
 
 def get_user_by_id(user_id):
     """根据用户ID获取用户
@@ -222,29 +177,7 @@ def get_user_by_id(user_id):
     """
     db_session = get_session()
     user = db_session.query(User).filter_by(id=user_id).first()
-    if user:
-        if user.expires_at and user.expires_at < datetime.now() and user.active:
-            user.active = False
-            db_session.commit()
-
-        password_expired = False
-        if user.password_expires_at and user.password_expires_at < datetime.now():
-            password_expired = True
-
-        return {
-            'id': user.id,
-            'username': user.username,
-            'password_hash': user.password_hash,
-            'role': user.role,
-            'created_at': user.created_at.isoformat(),
-            'last_login': user.updated_at.isoformat() if user.updated_at else None,
-            'is_active': user.active,
-            'expires_at': user.expires_at.isoformat() if user.expires_at else None,
-            'is_temporary': user.is_temporary,
-            'password_expired': password_expired,
-            'password_expires_at': user.password_expires_at.isoformat() if user.password_expires_at else None
-        }
-    return None
+    return user.to_dict(include_password=True) if user else None
 
 def create_user(username, password, role='user', expires_in=None, is_temporary=False):
     """创建新用户
@@ -314,23 +247,7 @@ def authenticate_user(username, password):
     user.updated_at = datetime.now()
     db_session.commit()
 
-    password_expired = False
-    if user.password_expires_at and user.password_expires_at < datetime.now():
-        password_expired = True
-
-    return True, {
-        'id': user.id,
-        'username': user.username,
-        'password_hash': user.password_hash,
-        'role': user.role,
-        'created_at': user.created_at.isoformat(),
-        'last_login': user.updated_at.isoformat(),
-        'is_active': user.active,
-        'expires_at': user.expires_at.isoformat() if user.expires_at else None,
-        'is_temporary': user.is_temporary,
-        'password_expired': password_expired,
-        'password_expires_at': user.password_expires_at.isoformat() if user.password_expires_at else None
-    }
+    return True, user.to_dict(include_password=True)
 
 def save_user(user):
     """保存用户信息
